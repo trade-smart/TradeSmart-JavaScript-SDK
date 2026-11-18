@@ -18,6 +18,7 @@ import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { computeChecksum } from "../../src/auth.js";
 import { CliCancelled, type CliIo } from "../../src/cli/io.js";
+import { commandArg, envHints } from "../../src/cli/login.js";
 import { runCli } from "../../src/cli/run.js";
 import { saveKeys } from "../../src/token-store/key-file.js";
 import { BASE_URL, scriptedClient, type Reply, type Scripted } from "../helpers/scripted-client.js";
@@ -41,6 +42,8 @@ afterAll(() => {
   rmSync(root, { recursive: true, force: true });
 });
 const posix = process.platform !== "win32";
+/** A path as the CLI quotes it on this platform (the quoting itself: tests/unit/cli-args). */
+const arg = (p: string): string => commandArg(p, process.platform)[0];
 
 let dir = "";
 let tokenFile = "";
@@ -182,9 +185,10 @@ describe("login in the browser", () => {
     expect(h.out).toContain(
       `Saved to ${tokenFile}. For TradeSmart.fromEnv() to use this file, set TRADESMART_TOKEN_FILE in the environment of your scripts:`,
     );
-    expect(h.out).toContain(`  export TRADESMART_TOKEN_FILE='${tokenFile}'`);
+    for (const hint of envHints(tokenFile, process.platform)) expect(h.out).toContain(`  ${hint}`);
+    if (posix) expect(h.out).toContain(`  export TRADESMART_TOKEN_FILE='${tokenFile}'`);
     expect(h.out).toContain(
-      `Remove the saved login with \`npx tradesmart logout --token-file '${tokenFile}'\`.`,
+      `Remove the saved login with \`npx tradesmart logout --token-file ${arg(tokenFile)}\`.`,
     );
 
     const saved = JSON.parse(readFileSync(tokenFile, "utf8")) as Record<string, string>;
@@ -558,7 +562,7 @@ describe("keys", () => {
       `Saved the App Key and Secret key for TEST123 to ${keysFile} (readable only by you, not encrypted); the next login uses them.`,
     );
     expect(h.out).toContain(
-      `Forget them with \`npx tradesmart logout --token-file '${tokenFile}' --forget-keys --client-id TEST123\`.`,
+      `Forget them with \`npx tradesmart logout --token-file ${arg(tokenFile)} --forget-keys --client-id TEST123\`.`,
     );
     if (posix) expect(statSync(keysFile).mode & 0o777).toBe(0o600);
     for (const line of allOutput(h)) expect(line).not.toContain(SECRET);
@@ -642,7 +646,7 @@ describe("keys", () => {
     });
     expect(await runCli(loginArgs(await freePort(), "--no-browser"), h.io)).toBe(1);
     expect(h.err).toContain(
-      `The keys saved for TEST123 in ${keysFile} were used. If they are wrong or were changed on the API Dashboard, forget them with \`npx tradesmart logout --token-file '${tokenFile}' --forget-keys --client-id TEST123\` and log in again.`,
+      `The keys saved for TEST123 in ${keysFile} were used. If they are wrong or were changed on the API Dashboard, forget them with \`npx tradesmart logout --token-file ${arg(tokenFile)} --forget-keys --client-id TEST123\` and log in again.`,
     );
     expect(existsSync(keysFile)).toBe(true);
   });
@@ -725,7 +729,9 @@ describe("token-path and logout", () => {
     expect(withEnv.out).toEqual([path.join(dir, "rel", "t.json")]);
     const plain = harness({ env: { XDG_CONFIG_HOME: dir } });
     await runCli(["token-path"], plain.io);
-    expect(plain.out).toEqual([path.join(dir, "tradesmart", "token.json")]);
+    // Windows: %APPDATA% (unset here), else <home>\AppData\Roaming; elsewhere $XDG_CONFIG_HOME.
+    const base = posix ? dir : path.join(dir, "AppData", "Roaming");
+    expect(plain.out).toEqual([path.join(base, "tradesmart", "token.json")]);
   });
 
   it("logout removes the token and says so, then says there is none", async () => {
