@@ -110,7 +110,7 @@ function harness(options: HarnessOptions = {}): Harness {
   const answers = options.answers ?? {};
   const io: CliIo = {
     env: { ...options.env },
-    platform: "linux",
+    platform: process.platform, // the real path rules: the temp folders are real paths
     home: dir,
     cwd: dir,
     stdout: (line) => out.push(line),

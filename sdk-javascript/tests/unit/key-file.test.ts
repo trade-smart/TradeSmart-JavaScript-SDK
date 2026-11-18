@@ -335,15 +335,19 @@ describe("unusable files are refused, named, never echoed and never overwritten"
     expect((await readSavedKeys(file, "SYNTH01"))?.appKey).toBe(APP);
   });
 
-  it.skipIf(!posix)("refuses a file owned by another user", async () => {
-    put(doc({ SYNTH01: { app_key: APP } }));
-    const before = readFileSync(file);
-    const uid = process.geteuid?.() ?? 0;
-    chownSync(file, uid + 1, statSync(file).gid);
-    await expect(readSavedKeys(file, "SYNTH01")).rejects.toThrow(/owned by another user/);
-    await expect(saveKeys(file, "SYNTH01", { appKey: "x" })).rejects.toBeInstanceOf(KeyFileError);
-    expect(readFileSync(file)).toEqual(before);
-  });
+  // Only root may hand a file to another user (GitHub runners are not root; Docker is).
+  it.skipIf(!posix || process.geteuid?.() !== 0)(
+    "refuses a file owned by another user",
+    async () => {
+      put(doc({ SYNTH01: { app_key: APP } }));
+      const before = readFileSync(file);
+      const uid = process.geteuid?.() ?? 0;
+      chownSync(file, uid + 1, statSync(file).gid);
+      await expect(readSavedKeys(file, "SYNTH01")).rejects.toThrow(/owned by another user/);
+      await expect(saveKeys(file, "SYNTH01", { appKey: "x" })).rejects.toBeInstanceOf(KeyFileError);
+      expect(readFileSync(file)).toEqual(before);
+    },
+  );
 });
 
 describe("forgetKeys / deleteKeyFile", () => {

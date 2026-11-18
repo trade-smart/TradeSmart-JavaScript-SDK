@@ -69,7 +69,8 @@ describe("readTokenFile", () => {
     expect(() => readTokenFile(put(body(), 0o604), NOW)).toThrow(TokenFileError);
   });
 
-  it.skipIf(!posix)("refuses a file owned by another user", () => {
+  // Only root may hand a file to another user (GitHub runners are not root; Docker is).
+  it.skipIf(!posix || process.geteuid?.() !== 0)("refuses a file owned by another user", () => {
     const file = put(body());
     const uid = statSync(file).uid;
     chownSync(file, uid + 1, statSync(file).gid);

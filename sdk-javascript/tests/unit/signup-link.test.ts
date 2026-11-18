@@ -66,7 +66,7 @@ describe("the login hint", () => {
     const log: string[] = [];
     const io: CliIo = {
       env,
-      platform: "linux",
+      platform: process.platform, // the real path rules: the temp folders are real paths
       home: dir,
       cwd: dir,
       stdout: (line) => log.push(`out: ${line}`),
