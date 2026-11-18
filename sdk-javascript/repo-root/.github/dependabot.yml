@@ -4,6 +4,9 @@ updates:
     directory: /sdk-javascript
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"] # TypeScript 7 has no compiler API for typescript-eslint yet
   - package-ecosystem: github-actions
     directory: /
     schedule:
