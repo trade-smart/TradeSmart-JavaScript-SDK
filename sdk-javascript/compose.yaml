@@ -1,0 +1,111 @@
+# Run every development command in Docker; nothing is installed on the host.
+#   docker compose build                          # once
+#   docker compose run --rm dev npm ci            # once per volume / after package.json changes
+#   docker compose run --rm dev npm test          # Node 26
+#   docker compose run --rm dev npm run lint      # eslint + prettier check
+#   docker compose run --rm dev npm run typecheck # tsc --noEmit
+#   docker compose run --rm dev npm run build     # emits dist/
+#   docker compose run --rm node22 npm test       # Node 22 floor (also node24)
+# See CONTRIBUTING.md for the full list of quality gates.
+
+x-sdk: &sdk
+  working_dir: /repo/sdk-javascript
+  environment:
+    # Passed through from the host only when set there (live tests are opt-in).
+    - TRADESMART_LIVE_TESTS
+    - TRADESMART_LIVE_ORDER_TESTS
+    - TRADESMART_LIVE_ORDER_ACCOUNT
+    - TRADESMART_LIVE_ORDER_OUTSIDE_HOURS
+    - TRADESMART_LIVE_ORDER_FUNDED
+    - TRADESMART_LIVE_ORDER_FILLS
+    - TRADESMART_LIVE_ORDER_MAX_BALANCE
+    - TRADESMART_LIVE_ORDER_UAT_IGNORE_OPEN
+    - TRADESMART_LIVE_ORDER_UAT_MATRIX
+    - TRADESMART_UAT_RUN_ID
+    - TRADESMART_LIVE_MOCK_SESSION
+    - TRADESMART_LIVE_MOCK_CONFIRM
+    - TRADESMART_CLIENT_ID
+    - TRADESMART_ACCESS_TOKEN
+    - TRADESMART_APP_KEY
+    - TRADESMART_SECRET_KEY
+    - TRADESMART_BASE_URL
+    - TRADESMART_ENV
+    - TRADESMART_ENV_BASE_URL
+    - TRADESMART_ENV_WS_URL
+    - TRADESMART_ENV_AUTHORIZE_URL
+    - TRADESMART_ENV_SCRIPT_MASTER_URL
+    - TRADESMART_ENV_APP_KEY
+    - TRADESMART_ENV_SECRET_KEY
+    - TRADESMART_TOKEN_FILE
+
+services:
+  dev:
+    <<: *sdk
+    build:
+      context: .
+      args:
+        NODE_VERSION: "26"
+    image: tradesmart-js-dev:node26
+    volumes:
+      # The whole monorepo: tests load ../specifications.
+      - ..:/repo
+      # node_modules in a named volume, never in the mounted tree.
+      - node_modules_dev:/repo/sdk-javascript/node_modules
+      # Saved login, shared with the Python SDK's compose project (same volume name).
+      - tradesmart-login:/root/.config/tradesmart
+
+  node22:
+    <<: *sdk
+    build:
+      context: .
+      args:
+        NODE_VERSION: "22"
+    image: tradesmart-js-dev:node22
+    volumes:
+      - ..:/repo
+      - node_modules_22:/repo/sdk-javascript/node_modules
+      - tradesmart-login:/root/.config/tradesmart
+
+  node24:
+    <<: *sdk
+    build:
+      context: .
+      args:
+        NODE_VERSION: "24"
+    image: tradesmart-js-dev:node24
+    volumes:
+      - ..:/repo
+      - node_modules_24:/repo/sdk-javascript/node_modules
+      - tradesmart-login:/root/.config/tradesmart
+
+  # Browser login from Docker with an automatic redirect (builds dist/ first; run `npm ci` once):
+  #   docker compose run --rm --service-ports login --client-id <ID>
+  # The port is published on the host's loopback only (never 0.0.0.0); the redirect URL
+  # registered with TradeSmart stays http://127.0.0.1:8080/callback. The login is saved in the
+  # tradesmart-login volume, shared with the Python SDK's compose project.
+  login:
+    <<: *sdk
+    build:
+      context: .
+      args:
+        NODE_VERSION: "26"
+    image: tradesmart-js-dev:node26
+    volumes:
+      - ..:/repo
+      - node_modules_dev:/repo/sdk-javascript/node_modules
+      - tradesmart-login:/root/.config/tradesmart
+    ports:
+      - "127.0.0.1:8080:8080"
+    entrypoint:
+      - sh
+      - -c
+      - npm run build --silent && exec node dist/cli/main.js login --listen-host 0.0.0.0 "$$@"
+      - login
+
+volumes:
+  node_modules_dev:
+  node_modules_22:
+  node_modules_24:
+  # Same volume as sdk-python's compose project, so one login serves both SDKs.
+  tradesmart-login:
+    name: sdk-python_tradesmart-login

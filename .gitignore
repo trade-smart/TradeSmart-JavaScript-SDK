@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node (the JavaScript SDK; sdk-javascript/.gitignore anchors the package's own entries)
+node_modules/
+coverage/
+*.tgz
+.npm/
+
+# Secrets / local config — never commit credentials
+.env
+.env.*
+!.env.example
+*.secret
+*credentials*.json
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local workflow notes
+.superpowers/
+
+# Agent worktrees created by Claude Code
+.claude/worktrees/
+
+# Observations recorded by the live tests and probes
+.live-results/
+
+# git worktrees for parallel feature work (superpowers:using-git-worktrees)
+.worktrees/

@@ -1,0 +1,89 @@
+name: Release to npm
+
+# Publishing a GitHub Release "vX.Y.Z" builds that tag, runs every check and publishes the package to
+# npm. A manual run does the same for an existing tag. The publish waits for a reviewer to approve the
+# "npm" environment, and uses npm trusted publishing (OIDC): no npm token is stored in this
+# repository, and npm adds a provenance statement for the build.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish, for example v2.0.1"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-npm
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    defaults:
+      run:
+        working-directory: sdk-javascript
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          package-manager-cache: false # never use a cache in a release build
+      - name: Check the tag matches the package version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match the package version $version"
+            exit 1
+          fi
+          case "$version" in *-*)
+            echo "::error::$version is a prerelease: this workflow publishes releases only (it would become \"latest\")"
+            exit 1
+          esac
+      - run: npm ci
+      - run: npm run build # the examples import the package by name, which resolves to dist/
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:cov
+      - run: npm run pack:check
+      - run: npm pack
+      - uses: actions/upload-artifact@v7
+        with:
+          name: javascript-package
+          path: sdk-javascript/*.tgz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/tradesmart
+    permissions:
+      id-token: write # npm trusted publishing
+    steps:
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Use npm 11 (trusted publishing needs 11.5.1 or newer)
+        run: npm install --global npm@11
+      - uses: actions/download-artifact@v7
+        with:
+          name: javascript-package
+      - name: Publish the tested package
+        run: |
+          set -- ./*.tgz
+          if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+            echo "::error::Expected exactly one package file, found: $*"
+            exit 1
+          fi
+          npm publish ./*.tgz --access public

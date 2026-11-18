@@ -1,0 +1,99 @@
+{
+  "name": "tradesmart",
+  "version": "2.0.0",
+  "description": "Official TradeSmart API V2 SDK for JavaScript and TypeScript (Node.js)",
+  "homepage": "https://signup.tradesmartonline.in/?utm_source=TypeScriptSDK&utm_medium=Organic&utm_campaign=SDK_Open_Demat&utm_content=registry_sidebar&channel=Organic&platform=web",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trade-smart/TradeSmart-JavaScript-SDK.git",
+    "directory": "sdk-javascript"
+  },
+  "bugs": {
+    "url": "https://github.com/trade-smart/TradeSmart-JavaScript-SDK/issues"
+  },
+  "keywords": [
+    "tradesmart",
+    "tradesmart-api",
+    "trading",
+    "trading-api",
+    "broker-api",
+    "algo-trading",
+    "algorithmic-trading",
+    "trading-bot",
+    "options-trading",
+    "option-greeks",
+    "stock-market",
+    "nse",
+    "bse",
+    "mcx",
+    "india",
+    "websocket",
+    "javascript",
+    "typescript",
+    "nodejs",
+    "api"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./analytics": {
+      "types": "./dist/analytics/index.d.ts",
+      "default": "./dist/analytics/index.js"
+    },
+    "./greeks": {
+      "types": "./dist/greeks/index.d.ts",
+      "default": "./dist/greeks/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
+    }
+  },
+  "bin": {
+    "tradesmart": "./dist/cli/main.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc -p tsconfig.build.json && node scripts/finish-bin.mjs",
+    "pack:check": "npm pack --dry-run && publint && attw --pack --profile esm-only",
+    "gen:models": "node --experimental-strip-types scripts/gen-models.ts"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0",
+    "fflate": "^0.8.3",
+    "undici": "^8.12.4",
+    "ws": "^8.23.0"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.15.0",
+    "prettier": "^3.10.1",
+    "publint": "^0.3.25",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vitest": "^5.1.0"
+  }
+}
