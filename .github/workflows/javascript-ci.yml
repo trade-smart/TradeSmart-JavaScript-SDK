@@ -1,7 +1,7 @@
 name: JavaScript CI
 
-# The JavaScript SDK's checks. Linux (Node 22, 24 and 26) and Windows run on every push and pull
-# request; macOS runs on a release tag or a manual run only. Nothing here sets a live-test
+# The JavaScript SDK's checks. Linux (Node 22, 24 and 26), Windows and macOS run on every push and
+# pull request (the repository is public: macOS minutes are free). Nothing here sets a live-test
 # variable or a credential: CI runs the offline suite only.
 on:
   pull_request:
@@ -13,14 +13,14 @@ on:
       - ".github/**"
   push:
     branches: [main]
-    tags: ["v*"] # a release tag runs every job, macOS included (path filters do not apply to tags)
+    tags: ["v*"] # a release tag runs every job (path filters do not apply to tags)
     paths:
       - "sdk-javascript/**"
       - "specifications/**"
       - "docs/**"
       - "*.md" # root README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT
       - ".github/**"
-  workflow_dispatch: # manual run from the Actions tab, macOS included
+  workflow_dispatch: # manual run from the Actions tab
 
 permissions:
   contents: read
@@ -58,26 +58,13 @@ jobs:
         include:
           - os: windows-latest
             node-version: "24"
+          - os: macos-latest
+            node-version: "24"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
-          cache-dependency-path: sdk-javascript/package-lock.json
-      - run: npm ci
-      - run: npm run build # the examples import the package by name, which resolves to dist/
-      - run: npm run test:cov
-
-  # macOS minutes cost 10x on a private repository: only on a release tag or a manual run.
-  test-macos:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/v')
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
           cache: npm
           cache-dependency-path: sdk-javascript/package-lock.json
       - run: npm ci
