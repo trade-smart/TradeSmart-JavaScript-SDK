@@ -195,8 +195,12 @@ describe("the npm README", () => {
     }
   });
 
-  it("both READMEs open with the logo, from this release's tag, light and dark", () => {
-    const version = (JSON.parse(read("package.json")) as { version: string }).version;
+  it("both READMEs open with the logo, from the newest released tag, light and dark", () => {
+    // The tag must exist on GitHub: the newest CHANGELOG version with a date, not "Unreleased"
+    // (an exported but unreleased version would otherwise show a broken logo).
+    const released = /^## \[(\d+\.\d+\.\d+)\] — \d{4}-\d{2}-\d{2}$/m.exec(read("CHANGELOG.md"));
+    expect(released, "a released version in CHANGELOG.md").not.toBeNull();
+    const version = released?.[1] ?? "";
     const cdn = `https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v${version}/`;
     for (const rel of ["README.md", "repo-root/README.md"]) {
       const text = read(rel);

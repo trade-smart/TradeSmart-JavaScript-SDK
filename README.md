@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
-    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.0.0/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
+    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.0.0/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
   </picture>
 </p>
 
@@ -53,7 +53,7 @@ try {
 - **[Your first order in 10 minutes](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/blob/main/sdk-javascript/docs/getting-started.md)**:
   API access, login, and a first order placed, checked, modified and cancelled.
 - **[User guide](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/blob/main/sdk-javascript/docs/README.md)**:
-  orders, streaming, instruments, errors, configuration and reference.
+  orders (GTT and OCO orders too), streaming, instruments, errors, configuration and reference.
 - **[Examples](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/tree/main/sdk-javascript/examples)**:
   runnable scripts.
 - **[`docs/`](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/blob/main/docs/README.md)**:
