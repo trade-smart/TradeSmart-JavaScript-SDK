@@ -37,6 +37,19 @@ const GTT_FIELDS = [
   "qty",
   "prc",
 ];
+
+// An OCO's required fields (PlaceOCOOrder / ModifyOCOOrder) besides uid, the legs and the triggers.
+const OCO_FIELDS = ["exch", "tsym", "ai_t", "validity"];
+const OCO_LEGS = ["place_order_params", "place_order_params_leg2"];
+const OCO_LEG_FIELDS = ["trantype", "prctyp", "prd", "ret", "qty", "prc"];
+const OCO_ALERT_TYPES = ["LMT_BOS_O", "LMT_SOB_O"];
+const OCO_NOT_TRIGGERED = "OCO triggering is not simulated: no fired OCO has been observed yet";
+
+/** True for a stored alert that is an OCO (by its alert type). */
+export function isOcoRow(alert: Wire): boolean {
+  return OCO_ALERT_TYPES.includes(text(alert["ai_t"]));
+}
+
 // The order fields a triggered GTT places (its order book row also gets "add_ord_id").
 const GTT_ORDER_FIELDS = [
   "exch",
@@ -98,6 +111,10 @@ export interface AddInstrumentOptions {
 
 /** A candle as the test gives it: friendly names (`open`, `close` ...) or wire keys, and `time`. */
 export type CandleInput = Readonly<Record<string, unknown>>;
+
+function isWire(value: unknown): value is Wire {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function mask(payload: Wire): Wire {
   return redactObject({ ...payload }) as Wire;
@@ -276,6 +293,8 @@ export class BrokerState {
   gtts: Wire[] = [];
   /** Triggered GTTs with the time they fired (`norentm`, a `Date`). */
   triggeredGtts: Wire[] = [];
+  /** Cancelled OCOs: `GetTrgOi` lists them with the row `stat` `CANCELLED` (F32, F35). */
+  cancelledOcos: Wire[] = [];
 
   readonly #drills = new Map<string, Drill[]>();
   readonly #listeners: Listener[] = [];
@@ -624,7 +643,7 @@ export class BrokerState {
     const alertId = text(payload["al_id"]);
     const fields = BrokerState.#gttFields(payload);
     const gtt = this.#pendingGtt(alertId);
-    if (gtt === null) return [false, "GTT not found to Modify"];
+    if (gtt === null || isOcoRow(gtt)) return [false, "GTT not found to Modify"];
     if (fields["ai_t"] !== gtt["ai_t"]) return [false, "ai_t cannot be modified"]; // documented
     this.gtts[this.gtts.indexOf(gtt)] = { al_id: alertId, ...fields };
     return [true, alertId];
@@ -633,7 +652,7 @@ export class BrokerState {
   /** Apply a `CancelGTTOrder`: `[true, alert id]` or `[false, reason]`. */
   cancelGtt(alertId: string): [boolean, string] {
     const gtt = this.#pendingGtt(alertId);
-    if (gtt === null) return [false, "GTT not found to Cancel"];
+    if (gtt === null || isOcoRow(gtt)) return [false, "GTT not found to Cancel"];
     this.gtts.splice(this.gtts.indexOf(gtt), 1);
     return [true, alertId];
   }
@@ -644,6 +663,7 @@ export class BrokerState {
    */
   triggerGtt(alertId: string): string {
     const gtt = this.#pendingGtt(alertId);
+    if (gtt !== null && isOcoRow(gtt)) throw new Error(OCO_NOT_TRIGGERED);
     if (gtt === null) throw new RangeError(`no pending GTT with alert id '${alertId}'`);
     const orderPayload: Wire = {};
     for (const key of GTT_ORDER_FIELDS) if (key in gtt) orderPayload[key] = gtt[key];
@@ -653,6 +673,71 @@ export class BrokerState {
     this.triggeredGtts.push({ ...gtt, norentm: new Date() });
     this.drain();
     return order.id;
+  }
+
+  // --- OCOs (stored beside the GTTs, in `gtts`) -----------------------------------------
+
+  /** The OCO's fields from a Place / Modify payload; `RangeError` if one is unusable. */
+  static #ocoFields(payload: Wire): Wire {
+    // The checks and messages of the reference broker, in its order, one problem at a time.
+    const missing = OCO_FIELDS.filter((key) => text(payload[key]).trim() === "");
+    if (missing.length > 0) throw new RangeError(`${missing.join(", ")} required`);
+    if (!OCO_ALERT_TYPES.includes(text(payload["ai_t"]))) {
+      throw new RangeError(`ai_t must be one of ${OCO_ALERT_TYPES.join(", ")}`);
+    }
+    const triggers = payload["oivariable"];
+    const noTriggers = "oivariable required: one trigger each for x and y";
+    if (!Array.isArray(triggers) || triggers.length !== 2) throw new RangeError(noTriggers);
+    const seen = new Set<unknown>();
+    for (const item of triggers as unknown[]) {
+      const slot = isWire(item) ? item : null;
+      const name = slot?.["var_name"];
+      const number = slot === null ? null : numberOf(slot["d"], "d");
+      if ((name !== "x" && name !== "y") || seen.has(name) || number === null) {
+        throw new RangeError(noTriggers);
+      }
+      seen.add(name);
+    }
+    for (const key of OCO_LEGS) {
+      const leg = payload[key];
+      if (!isWire(leg)) throw new RangeError(`${key} required`);
+      const absent = OCO_LEG_FIELDS.filter((field) => text(leg[field]).trim() === "");
+      if (absent.length > 0) throw new RangeError(`${key}: ${absent.join(", ")} required`);
+      numberOf(leg["prc"], "prc");
+      numberOf(leg["trgprc"], "trgprc");
+      whole(leg["qty"], "qty");
+    }
+    return Object.fromEntries(
+      Object.entries(mask(payload)).filter(([key]) => key !== "uid" && key !== "al_id"),
+    );
+  }
+
+  /** Store a `PlaceOCOOrder` as a pending OCO and return its alert id. */
+  placeOco(payload: Wire): string {
+    const fields = BrokerState.#ocoFields(payload);
+    this.#gttSeq += 1;
+    const alertId = `${this.#day}${String(this.#gttSeq).padStart(8, "0")}`;
+    this.gtts.push({ al_id: alertId, ...fields, norentm: new Date() });
+    return alertId;
+  }
+
+  /** Apply a `ModifyOCOOrder`: `true` when the alert is a pending OCO (`Invalid Oi` otherwise). */
+  modifyOco(payload: Wire): boolean {
+    const alertId = text(payload["al_id"]);
+    const fields = BrokerState.#ocoFields(payload);
+    const oco = this.#pendingGtt(alertId);
+    if (oco === null || !isOcoRow(oco)) return false;
+    this.gtts[this.gtts.indexOf(oco)] = { al_id: alertId, ...fields, norentm: oco["norentm"] };
+    return true;
+  }
+
+  /** Apply a `CancelOCOOrder`: `true` when the alert is a pending OCO (`Invalid Oi` otherwise). */
+  cancelOco(alertId: string): boolean {
+    const oco = this.#pendingGtt(alertId);
+    if (oco === null || !isOcoRow(oco)) return false;
+    this.gtts.splice(this.gtts.indexOf(oco), 1);
+    this.cancelledOcos.push(oco);
+    return true;
   }
 
   #pendingGtt(alertId: string): Wire | null {

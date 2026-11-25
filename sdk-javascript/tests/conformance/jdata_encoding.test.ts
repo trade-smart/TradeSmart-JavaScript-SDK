@@ -10,6 +10,7 @@ interface Expected {
   body?: string;
   utf8_hex?: string;
   error?: string;
+  fields?: string[];
 }
 
 describe("jdata_encoding.json", () => {
@@ -20,7 +21,17 @@ describe("jdata_encoding.json", () => {
       const expected = c.expected as Expected;
       const payload: WirePayload = input.payload;
       if (expected.error !== undefined) {
-        expect(() => encodeJData(payload)).toThrow(RequestValidationError);
+        let thrown: unknown;
+        try {
+          encodeJData(payload);
+        } catch (e) {
+          thrown = e;
+        }
+        expect(thrown).toBeInstanceOf(RequestValidationError);
+        if (expected.fields !== undefined) {
+          const errors = (thrown as RequestValidationError).errors;
+          expect(errors.map((e) => e.loc[0])).toEqual(expected.fields);
+        }
         return;
       }
       const bytes = encodeJData(payload);

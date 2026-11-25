@@ -100,7 +100,7 @@ describe("HttpTransport: request and response", () => {
     expect(seen[0]?.method).toBe("POST");
   });
 
-  it("sends User-Agent tradesmart-javascript/2.0.0 by default", async () => {
+  it("sends User-Agent tradesmart-javascript/2.1.0 by default", async () => {
     const agent = mockAgent();
     let ua: unknown;
     agent
@@ -111,7 +111,7 @@ describe("HttpTransport: request and response", () => {
         return { statusCode: 200, data: "{}" };
       });
     await new HttpTransport(cfg(), agent).send(prepared(), { stateChanging: false });
-    expect(ua).toBe("tradesmart-javascript/2.0.0");
+    expect(ua).toBe("tradesmart-javascript/2.1.0");
   });
 
   it("appends the SDK token to a configured userAgent", async () => {
@@ -128,11 +128,11 @@ describe("HttpTransport: request and response", () => {
     await new HttpTransport(cfg({ userAgent: "bot/1" }), agent).send(prepared(), {
       stateChanging: false,
     });
-    await new HttpTransport(cfg({ userAgent: "x tradesmart-javascript/2.0.0" }), agent).send(
+    await new HttpTransport(cfg({ userAgent: "x tradesmart-javascript/2.1.0" }), agent).send(
       prepared(),
       { stateChanging: false },
     );
-    expect(uas).toEqual(["bot/1 tradesmart-javascript/2.0.0", "x tradesmart-javascript/2.0.0"]);
+    expect(uas).toEqual(["bot/1 tradesmart-javascript/2.1.0", "x tradesmart-javascript/2.1.0"]);
   });
 
   it("passes maxRedirections 0 and the read timeout (ms) on every request", async () => {

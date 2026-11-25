@@ -162,7 +162,7 @@ describe("authentication before every call (§6.3)", () => {
     const s = scripted([{ body: '{"stat":"Ok"}' }]);
     await s.client.request("Limits", {}, { stateChanging: false });
     expect(s.headers[0]?.["authorization"]).toBe(`Bearer ${TOKEN}`);
-    expect(s.headers[0]?.["user-agent"]).toBe("tradesmart-javascript/2.0.0");
+    expect(s.headers[0]?.["user-agent"]).toBe("tradesmart-javascript/2.1.0");
   });
 });
 
@@ -278,7 +278,9 @@ describe("request() (§2.5)", () => {
     ["null", null],
     ["undefined", undefined],
     ["NaN", Number.NaN],
-    ["an object", { a: 1 }],
+    ["a nested null", { a: null }],
+    ["a nested undefined in a list", [undefined]],
+    ["a Map", new Map()],
   ])("a %s value throws TypeError before anything is sent", async (_label, value) => {
     const s = scripted([{ body: '{"stat":"Ok"}' }]);
     const err = await caught(
@@ -287,6 +289,53 @@ describe("request() (§2.5)", () => {
     expect(err).toBeInstanceOf(TypeError);
     expect(s.sends).toBe(0);
     expect(ordersLines(s.lines)).toEqual([]);
+  });
+
+  it("sends a nested object and list value in order, scalar leaves converted", async () => {
+    const s = scripted([{ body: '{"stat":"Ok"}' }]);
+    await s.client.request(
+      "Limits",
+      { legs: [{ z: 1, a: true }, { m: "x&y" }], box: { q: "1" } },
+      { stateChanging: false },
+    );
+    expect(s.bodies[0]).toBe(
+      'jData={"legs":[{"z":"1","a":"Yes"},{"m":"x%26y"}],"box":{"q":"1"},"uid":"' +
+        s.client.clientId +
+        '"}',
+    );
+  });
+
+  it("a sparse array or a cyclic object names only the top-level key and sends nothing", async () => {
+    const s = scripted([{ body: '{"stat":"Ok"}' }]);
+    const cyclic: Record<string, unknown> = {};
+    cyclic["self"] = cyclic;
+    const deep: unknown[] = [];
+    let tip = deep;
+    for (let i = 0; i < 150; i++) {
+      const next: unknown[] = [];
+      tip.push(next);
+      tip = next;
+    }
+    const sparse = [, "a"]; // eslint-disable-line no-sparse-arrays
+    for (const [key, value] of [
+      ["holes", sparse],
+      ["loop", cyclic],
+      ["deep", deep],
+    ] as const) {
+      const err = await caught(
+        s.client.request("Limits", { [key]: value } as never, { stateChanging: false }),
+      );
+      expect(err).toBeInstanceOf(TypeError);
+      expect((err as TypeError).message).toContain(`'${key}'`);
+    }
+    expect(
+      (
+        (await caught(
+          s.client.request("Limits", { loop: cyclic } as never, { stateChanging: false }),
+        )) as TypeError
+      ).message,
+    ).toContain("nested too deeply (or cyclic)");
+    expect(s.sends).toBe(0);
   });
 
   it("a bad endpoint name is ConfigurationError and nothing is sent", async () => {

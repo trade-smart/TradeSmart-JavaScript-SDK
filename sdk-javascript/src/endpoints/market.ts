@@ -5,7 +5,6 @@ import { fieldError, ResponseParseError } from "../errors.js";
 import { resolveEnum } from "../enums.js";
 import type { CallSpec } from "../lib/call.js";
 import type { ClassifyResult } from "../lib/classify.js";
-import type { WirePayload } from "../lib/codec.js";
 import { toWireDecimal } from "../lib/decimal.js";
 import { parseJsonLossless } from "../lib/json.js";
 import { redactedBody } from "../lib/redact.js";
@@ -68,7 +67,11 @@ export function searchCall(
   });
 }
 
-function exchangeTokenPayload(uid: string, exchange: unknown, token: unknown): WirePayload {
+function exchangeTokenPayload(
+  uid: string,
+  exchange: unknown,
+  token: unknown,
+): ReadonlyArray<readonly [string, string]> {
   const exch = exchangeCode(exchange);
   return [
     ["uid", uid],

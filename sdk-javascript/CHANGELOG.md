@@ -4,6 +4,31 @@ All notable changes to the `tradesmart` JavaScript and TypeScript SDK are docume
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] — Unreleased
+
+### Added
+
+- OCO (one-cancels-other) orders: `placeOco`, `modifyOco` and `cancelOco` (`PlaceOCOOrder`,
+  `ModifyOCOOrder`, `CancelOCOOrder`), with the `OcoLeg`, `PlaceOcoParams` and `ModifyOcoParams`
+  types. The stop-loss is always sent as slot `x` and the target as slot `y`; a side check runs before
+  anything is sent (BUY: stop-loss trigger above the target trigger; SELL: below). The calls are never
+  retried and an ambiguous outcome is `OrderStatusUnknownError`.
+- OCO helpers and types: `isOco(gtt)`, `ocoSides(gtt)` (`null` when ambiguous, including a repeated
+  slot), `OcoLegRow`, `OcoTrigger`, `OcoSide`, and `GttAlertType.OCO_BUY` / `OCO_SELL`. A leg, or the
+  trigger list, of a row that fails to parse is `null` as a whole; the row itself still parses.
+- `OfflineBroker` supports OCO orders (place, modify, cancel, listing). An OCO is never triggered
+  offline: `triggerGtt` on an OCO throws.
+- `request()` accepts nested plain objects and arrays as values.
+- Guide ("OCO orders" in `docs/orders.md`) and the example `examples/oco-exit.ts`.
+
+### Changed
+
+- `cancelGtt` now succeeds on the reply `OI deleted`, the word the server answers. The documented
+  `Oi delete success` now throws `OrderStatusUnknownError` (check `pendingGtts()`).
+- `Invalid Oi` on `modifyGtt` and `cancelGtt` is now an `OrderRejectedError` (it was an unknown outcome).
+- `ValidationIssue.loc` is now `readonly (string | number)[]`: an array index in a nested path is a
+  number. TypeScript code that reads `loc[0]` as a `string` must widen the type.
+
 ## [2.0.0] — 2026-11-18
 
 **The first release**, on npm as `tradesmart`. **TradeSmart SDK behaviour 2.0 — full:** every item the

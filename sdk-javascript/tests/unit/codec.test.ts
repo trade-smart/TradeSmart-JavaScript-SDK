@@ -1,10 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { encodeJData } from "../../src/lib/codec.js";
+import { encodeJData, type WirePayload } from "../../src/lib/codec.js";
 import { toWireDecimal } from "../../src/lib/decimal.js";
 import { RequestValidationError } from "../../src/errors.js";
 
 const text = (payload: [string, string][]): string =>
   new TextDecoder().decode(encodeJData(payload));
+
+describe("encodeJData nested values", () => {
+  const body = (payload: WirePayload): string => new TextDecoder().decode(encodeJData(payload));
+
+  it("keeps the key and item order of nested objects and lists", () => {
+    expect(
+      body([
+        [
+          "oivariable",
+          [
+            { d: "2", var_name: "x" },
+            { var_name: "y", d: "1" },
+          ],
+        ],
+        ["params", { z: "1", a: "2" }],
+      ]),
+    ).toBe(
+      'jData={"oivariable":[{"d":"2","var_name":"x"},{"var_name":"y","d":"1"}],"params":{"z":"1","a":"2"}}',
+    );
+  });
+
+  it("percent-encodes and escapes strings at any depth; empty list and object", () => {
+    expect(
+      body([
+        ["a", { r: "a&b+c%d\n" }],
+        ["b", []],
+        ["c", {}],
+      ]),
+    ).toBe('jData={"a":{"r":"a%26b%2Bc%25d\\n"},"b":[],"c":{}}');
+  });
+
+  it("names the top-level key of a nested lone surrogate, once, sorted", () => {
+    const bad = String.fromCharCode(0xd800);
+    try {
+      encodeJData([
+        ["z", [{ r: bad }]],
+        ["a", { r: bad, s: bad }],
+        ["ok", "1"],
+      ]);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(RequestValidationError);
+      expect((error as RequestValidationError).errors.map((e) => e.loc)).toEqual([["a"], ["z"]]);
+    }
+  });
+});
 
 describe("encodeJData", () => {
   it("percent-encodes the ampersand", () => {

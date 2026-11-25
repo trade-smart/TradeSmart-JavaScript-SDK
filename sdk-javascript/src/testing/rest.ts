@@ -222,6 +222,9 @@ class Handler {
       ["PlaceGTTOrder", (p, n) => this.#placeGtt(p, n)],
       ["ModifyGTTOrder", (p, n) => this.#modifyGtt(p, n)],
       ["CancelGTTOrder", (p, n) => this.#cancelGtt(p, n)],
+      ["PlaceOCOOrder", (p, n) => this.#placeOco(p, n)],
+      ["ModifyOCOOrder", (p, n) => this.#modifyOco(p, n)],
+      ["CancelOCOOrder", (p, n) => this.#cancelOco(p, n)],
       ["GetPendingGTTOrder", (p, n) => this.#pendingGtts(p, n)],
       ["GetTrgOi", (p, n) => this.#triggeredGtts(p, n)],
       ["GetEnabledGTTs", (p, n) => json(replies.enabledGtts(n))],
@@ -425,7 +428,32 @@ class Handler {
 
   #cancelGtt(payload: Wire, now: Date): Reply {
     const [accepted, result] = this.#state.cancelGtt(text(payload["al_id"]));
-    return accepted ? json(replies.gttAck("Oi delete success", result, now)) : notOk(result, now);
+    return accepted ? json(replies.gttAck("OI deleted", result, now)) : notOk(result, now);
+  }
+
+  // --- OCO (F35): `Invalid Oi` with an `al_id` and no `emsg` for an unknown or cancelled alert ---
+
+  #placeOco(payload: Wire, now: Date): Reply {
+    try {
+      return json(replies.gttAck("OI created", this.#state.placeOco(payload), now));
+    } catch (error) {
+      return invalid(error, now);
+    }
+  }
+
+  #modifyOco(payload: Wire, now: Date): Reply {
+    try {
+      const word = this.#state.modifyOco(payload) ? "OI replaced" : "Invalid Oi";
+      return json(replies.gttAck(word, text(payload["al_id"]), now));
+    } catch (error) {
+      return invalid(error, now);
+    }
+  }
+
+  #cancelOco(payload: Wire, now: Date): Reply {
+    const alertId = text(payload["al_id"]);
+    const word = this.#state.cancelOco(alertId) ? "OI deleted" : "Invalid Oi";
+    return json(replies.gttAck(word, alertId, now));
   }
 
   #gttRows(
@@ -441,11 +469,22 @@ class Handler {
   }
 
   #pendingGtts(_payload: Wire, now: Date): Reply {
-    return this.#gttRows(this.#state.gtts, replies.gttRow, now);
+    return this.#gttRows(this.#state.gtts, replies.pendingGttRow, now);
   }
 
   #triggeredGtts(_payload: Wire, now: Date): Reply {
-    return this.#gttRows(this.#state.triggeredGtts, replies.triggeredGttRow, now);
+    const state = this.#state;
+    const rowOf =
+      (build: (g: Wire, c: string, i: Wire | null) => Wire) =>
+      (g: Wire): Wire =>
+        build(g, state.clientId, state.findInstrument(text(g["exch"]), text(g["tsym"])));
+    return this.#rows(
+      [
+        ...state.triggeredGtts.map(rowOf(replies.triggeredGttRow)),
+        ...state.cancelledOcos.map(rowOf(replies.cancelledOcoRow)),
+      ],
+      now,
+    );
   }
 
   // --- market data ---------------------------------------------------------------------

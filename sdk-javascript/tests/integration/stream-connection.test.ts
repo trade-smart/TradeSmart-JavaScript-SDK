@@ -159,7 +159,7 @@ describe("connect (§9.1)", () => {
       accesstoken: TOKEN,
     });
     expect(server.last.headers["user-agent"]).toBe(headerUserAgent(config));
-    expect(server.last.headers["user-agent"]).toBe("tradesmart-javascript/2.0.0");
+    expect(server.last.headers["user-agent"]).toBe("tradesmart-javascript/2.1.0");
     expect(conn.reconnectCount).toBe(0);
   });
 
@@ -167,7 +167,7 @@ describe("connect (§9.1)", () => {
     const server = await startServer();
     const { conn } = make(server, { config: { userAgent: "my-app/1.0" } });
     await conn.connect();
-    expect(server.last.headers["user-agent"]).toBe("my-app/1.0 tradesmart-javascript/2.0.0");
+    expect(server.last.headers["user-agent"]).toBe("my-app/1.0 tradesmart-javascript/2.1.0");
   });
 
   it("accepts the live server's OK", async () => {
@@ -571,7 +571,7 @@ describe("reconnect (§9.5, §9.6)", () => {
       { t: "o", actid: CLIENT_ID },
       { t: "p", uid: CLIENT_ID },
     ]);
-    expect(server.last.headers["user-agent"]).toBe("tradesmart-javascript/2.0.0");
+    expect(server.last.headers["user-agent"]).toBe("tradesmart-javascript/2.1.0");
   });
 
   it("an abrupt disconnect also reconnects", async () => {

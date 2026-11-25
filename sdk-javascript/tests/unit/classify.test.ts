@@ -33,6 +33,16 @@ function fail(over: Partial<Args> & { bodyText: string }): Error {
   throw new Error("expected an error");
 }
 
+/** The error `fail` returns, checked with `instanceof` (no cast): another class fails the test. */
+function failAs<T extends Error>(
+  type: abstract new (...args: never[]) => T,
+  over: Partial<Args> & { bodyText: string },
+): T {
+  const error = fail(over);
+  if (!(error instanceof type)) throw new Error(`expected ${type.name}, got ${error.name}`);
+  return error;
+}
+
 const GTT = { endpoint: "PlaceGTTOrder", stateChanging: true } as const;
 
 describe("classifyResponse extras", () => {
@@ -63,29 +73,29 @@ describe("classifyResponse extras", () => {
 
   it("a 429 carries retryAfter on every RateLimitError path", () => {
     for (const bodyText of ['{"stat":"Not_Ok","emsg":"slow"}', "not json", "[1]", '"x"']) {
-      const error = fail({ bodyText, httpStatus: 429, retryAfter: 3 });
+      const error = failAs(RateLimitError, { bodyText, httpStatus: 429, retryAfter: 3 });
       expect(error).toBeInstanceOf(RateLimitError);
-      expect((error as RateLimitError).retryAfter).toBe(3);
+      expect(error.retryAfter).toBe(3);
     }
-    const none = fail({ bodyText: '{"stat":"Not_Ok"}', httpStatus: 429 }) as RateLimitError;
+    const none = failAs(RateLimitError, { bodyText: '{"stat":"Not_Ok"}', httpStatus: 429 });
     expect(none.retryAfter).toBeNull();
   });
 
   it("an emsg secret never reaches the message or the emsg attribute", () => {
-    const error = fail({
+    const error = failAs(APIError, {
       bodyText: '{"stat":"Not_Ok","emsg":"bad Bearer abc123secret and password=hunter2"}',
     });
     expect(error.message).not.toContain("abc123secret");
     expect(error.message).not.toContain("hunter2");
-    expect((error as APIError).emsg).not.toContain("hunter2");
+    expect(error.emsg).not.toContain("hunter2");
   });
 
   it("an unknown-outcome body is redacted and the message holds no server text", () => {
-    const error = fail({
+    const error = failAs(OrderStatusUnknownError, {
       endpoint: "PlaceOrder",
       stateChanging: true,
       bodyText: '{"stat":"Weird","susertoken":"tok123","emsg":"secret words"}',
-    }) as OrderStatusUnknownError;
+    });
     expect(error).toBeInstanceOf(OrderStatusUnknownError);
     expect(error.body).not.toContain("tok123");
     expect(error.message).not.toContain("secret words");
@@ -131,20 +141,20 @@ describe("classifyResponse extras", () => {
   });
 
   it("iceberg false: reason from rejreason, else emsg; definite on every status", () => {
-    const rejected = fail({
+    const rejected = failAs(OrderRejectedError, {
       endpoint: "PlaceIceBergOrder",
       stateChanging: true,
       bodyText: '{"stat":"false","rejreason":"too small","emsg":"other"}',
       httpStatus: 500,
-    }) as APIError;
+    });
     expect(rejected).toBeInstanceOf(OrderRejectedError);
     expect(rejected.emsg).toBe("too small");
     expect(rejected.message).toBe("PlaceIceBergOrder failed: too small");
-    const fallback = fail({
+    const fallback = failAs(APIError, {
       endpoint: "CancelIceBergOrder",
       stateChanging: true,
       bodyText: '{"stat":"false","rejreason":" ","emsg":"other"}',
-    }) as APIError;
+    });
     expect(fallback.emsg).toBe("other");
     expect(
       fail({

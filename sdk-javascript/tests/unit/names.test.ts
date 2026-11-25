@@ -45,7 +45,7 @@ describe("canonicalEndpoint", () => {
     expect(place.requiresAckId).toBe("al_id");
     expect(place.ignoreCase).toBe(true);
     expect(canonicalEndpoint("ModifyGTTOrder").successWords).toEqual(["Oi replaced"]);
-    expect(canonicalEndpoint("CancelGTTOrder").successWords).toEqual(["Oi delete success"]);
+    expect(canonicalEndpoint("CancelGTTOrder").successWords).toEqual(["OI deleted"]);
     for (const name of ["PlaceIceBergOrder", "ModifyIceBergOrder", "CancelIceBergOrder"]) {
       const info = canonicalEndpoint(name);
       expect(info.successWords).toEqual(["true"]);
@@ -91,32 +91,30 @@ describe("isSuccessWord", () => {
     expect(isSuccessWord("PlaceGTTOrder", " Oi created")).toBe(false);
     expect(isSuccessWord("PlaceGTTOrder", "Oi created ")).toBe(false);
     expect(isSuccessWord("PlaceGTTOrder", "Oi replaced")).toBe(false);
-    expect(isSuccessWord("CancelGTTOrder", "OI deleted")).toBe(false);
-    expect(isSuccessWord("CancelGTTOrder", "OI DELETE SUCCESS")).toBe(true);
+    expect(isSuccessWord("CancelGTTOrder", "Oi delete success")).toBe(false);
+    expect(isSuccessWord("CancelGTTOrder", "OI DELETED")).toBe(true);
   });
 
-  it("folds case like Unicode case folding (long s, sharp s, Kelvin sign)", () => {
-    expect(isSuccessWord("CancelGTTOrder", "Oi delete ſuccess")).toBe(true);
-    expect(isSuccessWord("CancelGTTOrder", "Oi delete suKcess")).toBe(false);
-    expect(isSuccessWord("CancelGTTOrder", "Oi delete success")).toBe(true);
+  it("rejects look-alike letters in the GTT and OCO words (no word has an s or k to fold)", () => {
+    expect(isSuccessWord("CancelGTTOrder", "OI deleted")).toBe(true);
+    expect(isSuccessWord("CancelGTTOrder", "OI deletéd")).toBe(false);
+    expect(isSuccessWord("PlaceOCOOrder", "oi CREATED")).toBe(true);
+    expect(isSuccessWord("ModifyOCOOrder", "OI replaced")).toBe(true);
+    expect(isSuccessWord("CancelOCOOrder", "OI deleted")).toBe(true);
+    expect(isSuccessWord("PlaceOCOOrder", "Oi delete success")).toBe(false);
   });
 
   it("matches Python casefold() exactly for look-alike characters (results confirmed in Python)", () => {
     const c = (...codes: number[]): string => String.fromCodePoint(...codes);
     const cancel = "CancelGTTOrder";
     const place = "PlaceGTTOrder";
-    // Python accepts: long s, sharp s (both cases) fold to "s" / "ss".
-    expect(isSuccessWord(cancel, `Oi delete ${c(0x17f)}uccess`)).toBe(true);
-    expect(isSuccessWord(cancel, `Oi delete succe${c(0xdf)}`)).toBe(true);
-    expect(isSuccessWord(cancel, `Oi delete succe${c(0x1e9e)}`)).toBe(true);
     // Python rejects: dotless i stays itself, dotted I folds to i + U+0307, fullwidth letters
     // fold to fullwidth, Kelvin sign folds to "k".
     expect(isSuccessWord(place, `O${c(0x131)} created`)).toBe(false);
     expect(isSuccessWord("ModifyGTTOrder", `O${c(0x131)} replaced`)).toBe(false);
-    expect(isSuccessWord(cancel, `O${c(0x131)} delete success`)).toBe(false);
+    expect(isSuccessWord(cancel, `O${c(0x131)} deleted`)).toBe(false);
     expect(isSuccessWord(place, `${c(0x130)}i created`)).toBe(false);
     expect(isSuccessWord(place, `${c(0xff2f, 0xff49)} created`)).toBe(false);
-    expect(isSuccessWord(cancel, `Oi delete su${c(0x212a)}cess`)).toBe(false);
     // Python: the ligature U+FB06 folds to "st"; no GTT word contains it, so nothing matches.
     expect(isSuccessWord(place, `Oi cr${c(0xfb06)}`)).toBe(false);
   });
@@ -145,7 +143,14 @@ describe("isSuccessWord", () => {
 // non-string `stat`, where the other success conditions (`al_id`, `emsg`) hold, so the word decides.
 describe("isSuccessWord against success_words.json", () => {
   const vector = loadVector("success_words.json");
-  const ACK = new Set(["PlaceGTTOrder", "ModifyGTTOrder", "CancelGTTOrder"]);
+  const ACK = new Set([
+    "PlaceGTTOrder",
+    "ModifyGTTOrder",
+    "CancelGTTOrder",
+    "PlaceOCOOrder",
+    "ModifyOCOOrder",
+    "CancelOCOOrder",
+  ]);
   let checked = 0;
   for (const c of vector.cases) {
     const input = c.input as { body: string; endpoint: string; http_status: JsonNumber };

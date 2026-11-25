@@ -41,6 +41,9 @@ export type {
   Holding,
   HoldingInstrument,
   Limits,
+  OcoLegRow,
+  OcoSide,
+  OcoTrigger,
   OptionContract,
   Order,
   OrderAck,
@@ -56,6 +59,7 @@ export type {
   TriggeredGtt,
   UserDetails,
 } from "./models/index.js";
+export { isOco, ocoSides } from "./models/index.js";
 export { noopLogger, type LogContext, type Logger, type LoggerName } from "./lib/log.js";
 export { ClientConfig, type ClientConfigInit } from "./config.js";
 export { roundToTick } from "./lib/tick.js";
@@ -67,9 +71,12 @@ export {
   type HistoricalDataOptions,
   type HoldingsOptions,
   type ModifyGttParams,
+  type ModifyOcoParams,
   type ModifyOrderParams,
+  type OcoLeg,
   type OrderMarginParams,
   type PlaceGttParams,
+  type PlaceOcoParams,
   type PlaceOrderParams,
   type PlaceSlicedOrderParams,
   type PriceInput,

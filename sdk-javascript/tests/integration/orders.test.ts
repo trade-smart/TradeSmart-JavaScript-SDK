@@ -507,6 +507,45 @@ describe("GTT writes", () => {
     expect(debug).toEqual(["ModifyGTTOrder: the acknowledged alert id differs from the one sent"]);
   });
 
+  it("cancelGtt succeeds on OI deleted and returns the al_id", async () => {
+    const s = scripted('{"stat":"OI deleted","al_id":"26111200000010"}');
+    await expect(s.client.cancelGtt(ALERT_ID)).resolves.toBe(ALERT_ID);
+  });
+
+  it("the documented Oi delete success is no longer a cancel success", async () => {
+    const s = scripted('{"stat":"Oi delete success","al_id":"26111200000010"}');
+    const error = await rejection(s.client.cancelGtt(ALERT_ID));
+    expect(error).toBeInstanceOf(OrderStatusUnknownError);
+    expect((error as Error).message).toContain("pending_gtts()");
+  });
+
+  it.each(["Invalid Oi", "INVALID OI", "invalid oi"])(
+    "cancelGtt and modifyGtt answering %s are OrderRejectedError, never retried",
+    async (stat) => {
+      const body = `{"stat":"${stat}","al_id":"26111200000010"}`;
+      const cancel = scripted(body);
+      const error = await rejection(cancel.client.cancelGtt(ALERT_ID));
+      expect(error).toBeInstanceOf(OrderRejectedError);
+      expect((error as OrderRejectedError).message).toBe("Invalid Oi");
+      expect((error as OrderRejectedError).emsg).toBe(stat);
+      expect(cancel.sends).toBe(1);
+      const modify = scripted(body);
+      expect(await rejection(modify.client.modifyGtt(ALERT_ID, MODIFY_GTT))).toBeInstanceOf(
+        OrderRejectedError,
+      );
+      expect(modify.sends).toBe(1);
+    },
+  );
+
+  it("an untrimmed Invalid Oi, and Invalid Oi on PlaceGTTOrder, are OrderStatusUnknownError", async () => {
+    const untrimmed = scripted('{"stat":" Invalid Oi","al_id":"26111200000010"}');
+    expect(await rejection(untrimmed.client.cancelGtt(ALERT_ID))).toBeInstanceOf(
+      OrderStatusUnknownError,
+    );
+    const place = scripted('{"stat":"Invalid Oi","al_id":"26111200000010"}');
+    expect(await rejection(place.client.placeGtt(GTT))).toBeInstanceOf(OrderStatusUnknownError);
+  });
+
   it("the GTT word compares ignoring letter case only", async () => {
     const s = scripted('{"stat":"OI created","al_id":"26111200000010"}');
     await expect(s.client.placeGtt(GTT)).resolves.toBe(ALERT_ID);
@@ -518,6 +557,7 @@ describe("GTT writes", () => {
     '{"stat":"Oi created","al_id":"  "}',
     '{"stat":"Oi created","al_id":26111200000010}',
     '{"stat":"OI deleted","al_id":"26111200000010"}',
+    '{"stat":"Oi delete success","al_id":"26111200000010"}',
   ])("%s is OrderStatusUnknownError naming pending_gtts()", async (body) => {
     const s = scripted(body);
     const error = await rejection(s.client.placeGtt(GTT));

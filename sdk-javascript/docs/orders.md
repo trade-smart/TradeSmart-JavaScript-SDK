@@ -19,6 +19,7 @@ places, modifies or cancels an order changes your real account**. `client` is a 
 | `client.orderMargin(params)`                  | The margin an order would need (`GetOrderMargin`); a read, nothing is placed | an `OrderMargin`        |
 | `client.placeSlicedOrder(params)`             | One large order as freeze-limit slices ([Sliced orders](#sliced-orders))     | a `SlicedOrderResult`   |
 | `client.placeGtt` / `modifyGtt` / `cancelGtt` | GTT orders ([GTT orders](#gtt-orders))                                       | the alert id            |
+| `client.placeOco` / `modifyOco` / `cancelOco` | OCO (target and stop-loss) orders ([OCO orders](#oco-orders))                | the alert id            |
 
 **An acknowledgement is not an execution.** Each call resolves once TradeSmart's order system has
 _accepted the request_. Whether the order is open, filled, cancelled or rejected by the exchange is
@@ -234,7 +235,8 @@ polling.
 ## Recovery: tag every order, never resend blindly
 
 The SDK **never retries** a `PlaceOrder`, `PlaceMultiOrder`, `ModifyOrder`, `CancelOrder`,
-`ExitSNOOrder`, GTT write (`PlaceGTTOrder`, `ModifyGTTOrder`, `CancelGTTOrder`) or iceberg write
+`ExitSNOOrder`, GTT write (`PlaceGTTOrder`, `ModifyGTTOrder`, `CancelGTTOrder`), OCO write
+(`PlaceOCOOrder`, `ModifyOCOOrder`, `CancelOCOOrder`) or iceberg write
 (`PlaceIceBergOrder`, `ModifyIceBergOrder`, `CancelIceBergOrder`) request, and never follows an HTTP
 redirect. When a request may have reached TradeSmart but no definitive answer came back (a read
 timeout, a connection dropped after sending, a gateway error page, an unreadable answer, a TLS
@@ -243,7 +245,7 @@ failure after the connection opened) the call rejects with
 
 An **abort after the request was handed over** is not an SDK error: the call rejects with the
 signal's own reason, logs the outcome `unknown` with a WARNING, and never resends the order. Handle
-it exactly like `OrderStatusUnknownError`: check `orders()` (a GTT: `pendingGtts()`) before sending
+it exactly like `OrderStatusUnknownError`: check `orders()` (a GTT or OCO: `pendingGtts()`) before sending
 anything again.
 
 A failure that provably happened _before_ sending (cannot connect, connect timeout, no free
@@ -453,6 +455,100 @@ expiry. The 13 alert types are the `GttAlertType` constants (`LTP_ABOVE`, `LTP_B
 `alertValidity`: pass both, so nothing changes by accident. After an unknown outcome find the GTT by
 its tag in `pendingGtts()` and never place it again.
 
+`cancelGtt` succeeds on the reply `OI deleted`; an `Invalid Oi` reply to `modifyGtt` or `cancelGtt`
+(observed for an alert that no longer exists, an already cancelled one) throws `OrderRejectedError`,
+decided by that reply alone. What the server answers to `modifyGtt` or `cancelGtt` on an OCO's alert
+id is not documented (the offline broker answers `GTT not found to Modify` / `GTT not found to
+Cancel`, an `OrderRejectedError`): use the OCO calls below for OCOs.
+
+## OCO orders
+
+An OCO (one-cancels-other) order is a multi-day exit with a **target** and a **stop-loss**, held on
+TradeSmart's server as one alert. When the last price reaches one trigger, the server places that
+side's order and drops the other. Bracket orders are intraday only; an OCO can stay for days. **A
+trigger that is already crossed when the OCO is placed may fire at once** and places a real order,
+so check the last price first.
+
+| Call                          | What it does                                           | Resolves with       |
+| ----------------------------- | ------------------------------------------------------ | ------------------- |
+| `placeOco(params)`            | Place an OCO (`PlaceOCOOrder`)                         | the alert id        |
+| `modifyOco(alertId, params)`  | Replace a pending OCO (send every field again)         | the acknowledged id |
+| `cancelOco(alertId)`          | Cancel a pending OCO (`CancelOCOOrder`)                | the acknowledged id |
+| `isOco(gtt)`, `ocoSides(gtt)` | Read an OCO row of `pendingGtts()` / `triggeredGtts()` | see below           |
+
+`stopLoss` and `target` are legs: `{ triggerValue, price, orderType, triggerPrice }`. `orderType` is
+`LIMIT` (default), `MARKET`, `SL` or `SL_M`; `price` is required for `LIMIT` and `SL`;
+`triggerPrice` is required for `SL` and `SL_M` and refused for the others. A `MARKET` leg may be
+refused by TradeSmart for API orders. The shared fields are `exchange`, `tradingsymbol`,
+`transactionType`, `quantity`, `product` (`CNC`, `NRML` or `CO`), an optional `tag`, `validity`
+(the orders' validity, default `DAY`) and `alertValidity` (the OCO's own: `GTT`, the default, or
+`DAY`).
+
+**The side rule.** A `BUY` OCO closes a short position: the stop-loss trigger must be **above** the
+target trigger. A `SELL` OCO closes a long position: the stop-loss trigger must be **below** the
+target trigger. Equal triggers are refused before anything is sent. The SDK always sends the
+stop-loss as slot `x` and the target as slot `y`, as TradeSmart's web terminal does.
+
+```ts
+import { Exchange, Product, TradeSmart, TransactionType } from "tradesmart";
+
+const client = TradeSmart.fromEnv();
+try {
+  // Exit a long position: SELL, stop-loss below the target.
+  const alertId = await client.placeOco({
+    exchange: Exchange.NSE,
+    tradingsymbol: "ITC-EQ",
+    transactionType: TransactionType.SELL,
+    quantity: 1,
+    product: Product.CNC,
+    stopLoss: { triggerValue: "380.00", price: "379.50" }, // LIMIT by default
+    target: { triggerValue: "450.00", price: "450.00" },
+    tag: "oco-0001", // may not be listed on OCO rows: match by symbol and triggers too
+  });
+  console.log(alertId);
+  await client.cancelOco(alertId);
+} finally {
+  await client.close();
+}
+```
+
+`modifyOco(alertId, params)` takes the same fields and needs `validity` and `alertValidity` (no
+defaults), so nothing changes by accident. Like the GTT writes, the three OCO calls are never retried;
+after an unknown outcome find the OCO in `pendingGtts()` (by its alert id, or by comparing its symbol,
+quantity and triggers with what you sent: the `tag` may not be listed on OCO rows) and never place it
+again. `Invalid Oi` on a modify or cancel (observed for an alert that no longer exists, an already
+cancelled one; the answer for a fired OCO has not been observed) is an `OrderRejectedError`, decided
+by that reply alone. A success needs the reply `OI created`, `OI replaced` or `OI deleted` with an
+alert id; any other reply is `OrderStatusUnknownError`.
+
+**Reading back.** An OCO is listed with the GTTs. `isOco(gtt)` is true for an alert type of
+`GttAlertType.OCO_BUY` or `OCO_SELL`, and `ocoSides(gtt)` returns `{ stopLoss, target }` (each a
+`{ leg, triggerValue }`), or `null` when the row is ambiguous. It works for OCOs placed by any front
+end, because it decides by trigger value and the alert type, not by slot. A cancelled OCO is listed
+by `triggeredGtts()` with `stat` `CANCELLED`. What a fired OCO looks like has not been observed yet
+(a question open with TradeSmart): whether its order carries `parentId` equal to the alert id, as a
+fired GTT's does, is not known.
+
+```ts
+import { TradeSmart, isOco, ocoSides } from "tradesmart";
+
+const client = TradeSmart.fromEnv();
+try {
+  for (const gtt of await client.pendingGtts()) {
+    if (!isOco(gtt)) continue;
+    const sides = ocoSides(gtt);
+    if (sides === null) continue;
+    console.log(gtt.alertId, "stop-loss", String(sides.stopLoss.triggerValue));
+    console.log(gtt.alertId, "target", String(sides.target.triggerValue));
+  }
+} finally {
+  await client.close();
+}
+```
+
+`cancelGtt` and `modifyGtt` are not for OCOs: they refuse an OCO alert type. A runnable version of
+this section is `examples/oco-exit.ts` (offline).
+
 ## Order logging
 
 Each order call writes one `info` line to the `tradesmart.orders` logger ([Logging](logging.md)):
@@ -461,12 +557,12 @@ Each order call writes one `info` line to the `tradesmart.orders` logger ([Loggi
 PlaceOrder accepted order_id=26110700000001 in 42 ms
 ```
 
-| Word       | Meaning                                                                                                                |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `accepted` | TradeSmart acknowledged the request (not a fill; check `orders()`)                                                     |
-| `rejected` | TradeSmart answered with an error                                                                                      |
-| `unknown`  | The outcome is unknown; also one `warn` line ("check orders() before acting"; a GTT write names `pendingGtts()`)       |
-| `not_sent` | The request never reached TradeSmart: no or an expired token, the SDK's rate limit, a closed client, a connect failure |
+| Word       | Meaning                                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `accepted` | TradeSmart acknowledged the request (not a fill; check `orders()`)                                                      |
+| `rejected` | TradeSmart answered with an error                                                                                       |
+| `unknown`  | The outcome is unknown; also one `warn` line ("check orders() before acting"; a GTT or OCO write names `pendingGtts()`) |
+| `not_sent` | The request never reached TradeSmart: no or an expired token, the SDK's rate limit, a closed client, a connect failure  |
 
 Invalid parameters (`RequestValidationError`, `TypeError`) are refused before an order call starts
 and log no line, and neither does an abort before the request was handed over. Prices, payloads and

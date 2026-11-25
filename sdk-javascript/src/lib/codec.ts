@@ -3,8 +3,19 @@
 // what goes on the wire.
 import { RequestValidationError, type ValidationIssue } from "../errors.js";
 
+/**
+ * A wire value (§3.2): a string, or a nested object (a plain object, keys written in insertion
+ * order; the OCO keys are never integer-like) or list of such values.
+ */
+export type WireValue = string | WireObject | readonly WireValue[];
+
+/** A nested object value. */
+export interface WireObject {
+  readonly [key: string]: WireValue;
+}
+
 /** The request payload as ordered `[wire key, wire value]` pairs; the order is sent as given. */
-export type WirePayload = ReadonlyArray<readonly [key: string, value: string]>;
+export type WirePayload = ReadonlyArray<readonly [key: string, value: WireValue]>;
 
 const SHORT_ESCAPES: Readonly<Record<number, string>> = {
   0x08: "\\b",
@@ -44,6 +55,30 @@ function displayKey(key: string): string {
   return out;
 }
 
+/** The value as compact JSON text, or `null` when any string at any depth has a lone surrogate. */
+function jsonValue(value: WireValue): string | null {
+  if (typeof value === "string") {
+    const escaped = escapeJsonString(value);
+    return escaped === null ? null : `"${escaped}"`;
+  }
+  const parts: string[] = [];
+  if (Array.isArray(value)) {
+    for (const item of value as readonly WireValue[]) {
+      const text = jsonValue(item);
+      if (text === null) return null;
+      parts.push(text);
+    }
+    return `[${parts.join(",")}]`;
+  }
+  for (const [key, item] of Object.entries(value as WireObject)) {
+    const escapedKey = escapeJsonString(key);
+    const text = jsonValue(item);
+    if (escapedKey === null || text === null) return null;
+    parts.push(`"${escapedKey}":${text}`);
+  }
+  return `{${parts.join(",")}}`;
+}
+
 /**
  * Encode the payload as the UTF-8 bytes of `jData=<compact JSON>`: keys in the given order, only
  * `% & +` percent-encoded (in that order), everything else raw. A key or value with a lone
@@ -55,12 +90,12 @@ export function encodeJData(payload: WirePayload): Uint8Array {
   const members: string[] = [];
   for (const [key, value] of payload) {
     const escapedKey = escapeJsonString(key);
-    const escapedValue = escapeJsonString(value);
+    const escapedValue = jsonValue(value);
     if (escapedKey === null || escapedValue === null) {
       bad.add(displayKey(key));
       continue;
     }
-    members.push(`"${escapedKey}":"${escapedValue}"`);
+    members.push(`"${escapedKey}":${escapedValue}`);
   }
   if (bad.size > 0) {
     const keys = [...bad].sort();

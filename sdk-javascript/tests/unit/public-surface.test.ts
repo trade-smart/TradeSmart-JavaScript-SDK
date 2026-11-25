@@ -10,7 +10,9 @@ const PUBLIC_NAMES = [
   "TradeSmartStream",
   "VERSION",
   // logging
+  "isOco",
   "noopLogger",
+  "ocoSides",
   // errors
   "APIError",
   "AuthenticationError",

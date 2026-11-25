@@ -18,8 +18,8 @@ export class ConfigurationError extends TradeSmartError {
 export interface ValidationIssue {
   /** Short machine-readable kind, for example `value_error`, `enum`, `greater_than_equal`. */
   type: string;
-  /** The wire key of the failing field (for example `["qty"]`); empty for a cross-field rule. */
-  loc: readonly string[];
+  /** The wire path of the failing field (for example `["qty"]` or `["oivariable", 0, "d"]`); empty for a cross-field rule. */
+  loc: readonly (string | number)[];
   msg: string;
 }
 

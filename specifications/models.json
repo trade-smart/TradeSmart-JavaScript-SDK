@@ -42,6 +42,12 @@
         "SlicedOrderResult"
       ],
       "note": "Quantities are in trade units on every exchange, MCX included (whole multiples of the lot size)."
+    },
+    {
+      "applies_to": [
+        "OcoSide"
+      ],
+      "note": "Derived from the row's `oco_first`, `oco_second` and `oco_triggers`; it has no wire keys and no `raw`. The side is decided by `alert_type` (`OCO_BUY`: the leg with the higher trigger is the stop-loss; `OCO_SELL`: the lower one), never by the leg's slot or `trantype`."
     }
   ],
   "leniency": {
@@ -3395,6 +3401,147 @@
       ]
     },
     {
+      "name": "OcoTrigger",
+      "group": "gtt",
+      "description": "One trigger value of an OCO row of `GetPendingGTTOrder` / `GetTrgOi` (an item of `oivariable`): `var_name` `x` or `y` names the leg it belongs to.",
+      "extends": null,
+      "lenient": true,
+      "stream_types": [],
+      "fields": [
+        {
+          "name": "var_name",
+          "wire": "var_name",
+          "type": "str",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "trigger_value",
+          "wire": "d",
+          "type": "Price",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        }
+      ]
+    },
+    {
+      "name": "OcoLegRow",
+      "group": "gtt",
+      "description": "One order leg of an OCO row (`place_order_params` / `place_order_params_leg2`). Its trigger value is not here: it is the `oivariable` item with the same slot (`x` for the first leg, `y` for the second), see `Gtt.oco_triggers`. Other keys of the leg (`s_prdt_ali`, `C`, `ipaddr`) are kept as extras.",
+      "extends": null,
+      "lenient": true,
+      "stream_types": [],
+      "fields": [
+        {
+          "name": "transaction_type",
+          "wire": "trantype",
+          "type": "enum TransactionType",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "order_type",
+          "wire": "prctyp",
+          "type": "enum OrderType",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "quantity",
+          "wire": "qty",
+          "type": "Quantity",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "price",
+          "wire": "prc",
+          "type": "Price",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "trigger_price",
+          "wire": "trgprc",
+          "type": "Price",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "product",
+          "wire": "prd",
+          "type": "enum Product",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "account_id",
+          "wire": "actid",
+          "type": "str",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "ordersource",
+          "wire": "ordersource",
+          "type": "str",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "tag",
+          "wire": "remarks",
+          "type": "str",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        }
+      ]
+    },
+    {
       "name": "Gtt",
       "group": "gtt",
       "description": "One pending GTT of `GetPendingGTTOrder`.",
@@ -3626,6 +3773,39 @@
           "name": "ordersource",
           "wire": "ordersource",
           "type": "str",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "oco_first",
+          "wire": "place_order_params",
+          "type": "OcoLegRow",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "oco_second",
+          "wire": "place_order_params_leg2",
+          "type": "OcoLegRow",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "oco_triggers",
+          "wire": "oivariable",
+          "type": "list[OcoTrigger]",
           "required": false,
           "lenient": true,
           "protected": false,
@@ -3867,6 +4047,39 @@
           "name": "ordersource",
           "wire": "ordersource",
           "type": "str",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "oco_first",
+          "wire": "place_order_params",
+          "type": "OcoLegRow",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "oco_second",
+          "wire": "place_order_params_leg2",
+          "type": "OcoLegRow",
+          "required": false,
+          "lenient": true,
+          "protected": false,
+          "secret": false,
+          "nullable": true,
+          "default": null
+        },
+        {
+          "name": "oco_triggers",
+          "wire": "oivariable",
+          "type": "list[OcoTrigger]",
           "required": false,
           "lenient": true,
           "protected": false,
@@ -9019,6 +9232,25 @@
         }
       ],
       "methods": []
+    },
+    {
+      "name": "OcoSide",
+      "module": "gtt",
+      "immutable": true,
+      "description": "One side of an OCO row, the result of `Gtt.stop_loss` / `Gtt.target`: the leg and its trigger value. A derived, read-only result (not a wire model).",
+      "fields": [
+        {
+          "name": "leg",
+          "type": "OcoLegRow",
+          "nullable": false
+        },
+        {
+          "name": "trigger_value",
+          "type": "Decimal",
+          "nullable": false
+        }
+      ],
+      "methods": []
     }
   ],
   "enums": [
@@ -9309,6 +9541,20 @@
           "wire": "VOLUME_A_O",
           "aliases": [
             "VOLUME_ABOVE"
+          ]
+        },
+        {
+          "name": "OCO_BUY",
+          "wire": "LMT_BOS_O",
+          "aliases": [
+            "OCO_BUY"
+          ]
+        },
+        {
+          "name": "OCO_SELL",
+          "wire": "LMT_SOB_O",
+          "aliases": [
+            "OCO_SELL"
           ]
         }
       ]

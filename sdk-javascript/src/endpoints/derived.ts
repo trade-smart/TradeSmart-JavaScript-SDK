@@ -131,7 +131,8 @@ function asNumber(value: unknown, name: string): number | null {
     }
     parsed = decimal.toNumber();
   } else if (typeof (value as { toNumber?: unknown }).toNumber === "function") {
-    parsed = (value as Decimal).toNumber();
+    // Duck-typed (a Decimal from any copy of decimal.js), so a structural type, not the class.
+    parsed = (value as { toNumber: () => number }).toNumber();
   } else throw new RangeError(`${name} must be a finite number, got ${show(value)}`);
   return Number.isFinite(parsed) ? parsed : null;
 }

@@ -162,6 +162,8 @@ interface Context {
   /** model or record name → its output file. */
   fileOf: Map<string, string>;
   models: Map<string, Model>;
+  /** Models another model's field holds (`OcoLegRow`, `OcoTrigger`, ...). */
+  nested: Set<string>;
   wireEnums: Set<string>;
   valueEnums: Set<string>;
 }
@@ -256,7 +258,9 @@ function recordFieldType(
     return `ReadonlyMap<${key}, ${value}>`;
   }
   const target = ctx.fileOf.get(type);
-  if (target !== undefined && !ctx.models.has(type)) {
+  // A record may name another record or a wire model (type only: a derived result holds parsed
+  // models, it never parses them), e.g. `OcoSide.leg` is an `OcoLegRow`.
+  if (target !== undefined) {
     if (target !== file) imports.localFrom(target).types.add(type);
     return type;
   }
@@ -300,7 +304,9 @@ function renderModel(model: Model, file: string, ctx: Context, imports: Imports)
     const flags = [`name: ${quote(name)}`, `wire: ${quote(field.wire)}`, `type: ${spec}`];
     if (field.required) flags.push("required: true");
     if (!nullable) flags.push("nullable: false");
-    if (field.lenient) flags.push("lenient: true");
+    // A nested record fails as a whole (sdk-behaviour.md 2.9): its own fields are never lenient,
+    // so a failure reaches the parent's field, which is nulled when that one is lenient.
+    if (field.lenient && !ctx.nested.has(model.name)) flags.push("lenient: true");
     if (field.protected) flags.push("protected: true");
     if (field.default !== null) flags.push(`default: ${quote(field.default)}`);
     specs.push(`{ ${flags.join(", ")} },`);
@@ -309,7 +315,11 @@ function renderModel(model: Model, file: string, ctx: Context, imports: Imports)
   members.push("readonly raw: Readonly<Record<string, unknown>>;");
   members.push(doc("Wire keys this model does not name, with their values."));
   members.push("readonly extra: Readonly<Record<string, unknown>>;");
-  const lenient = model.lenient ? " Lenient record." : "";
+  const lenient = ctx.nested.has(model.name)
+    ? " Nested record: a field that fails to parse fails the parent's field (null when that field is lenient)."
+    : model.lenient
+      ? " Lenient record."
+      : "";
   return [
     doc(`${model.description}${lenient}`),
     `export interface ${model.name} {`,
@@ -434,6 +444,20 @@ function parseSpec(text: string): ModelsJson {
   return spec as ModelsJson;
 }
 
+/** Names of the models that a field of another model holds (directly or as a list item). */
+function nestedModels(models: Model[]): Set<string> {
+  const names = new Set(models.map((model) => model.name));
+  const nested = new Set<string>();
+  for (const model of models) {
+    for (const field of model.fields) {
+      let type = field.type;
+      for (let item = listItem(type); item !== null; item = listItem(type)) type = item;
+      if (names.has(type)) nested.add(type);
+    }
+  }
+  return nested;
+}
+
 /** Generate the files of `src/models/generated/` (name → content) from `models.json` text. */
 export async function generate(input: string | Uint8Array): Promise<Map<string, string>> {
   const text = typeof input === "string" ? input : new TextDecoder().decode(input);
@@ -441,6 +465,7 @@ export async function generate(input: string | Uint8Array): Promise<Map<string, 
   const ctx: Context = {
     fileOf: new Map(),
     models: new Map(spec.models.map((model) => [model.name, model])),
+    nested: nestedModels(spec.models),
     wireEnums: new Set(spec.enums.map((e) => e.name)),
     valueEnums: new Set(spec.value_enums.map((e) => e.name)),
   };

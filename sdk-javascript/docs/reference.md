@@ -1,6 +1,6 @@
 # Reference
 
-Every public name of the `tradesmart` package. Version 2.0.0. The package is ESM-only (Node 22.12 or
+Every public name of the `tradesmart` package. Version 2.1.0. The package is ESM-only (Node 22.12 or
 newer, `"type": "module"`); there is one entry point, `tradesmart`.
 
 ## Conventions
@@ -59,6 +59,9 @@ await fromEnvironment.close();
 | `pendingGtts()`                                                        | `GetPendingGTTOrder`                            | `Gtt[]`                                                                               |
 | `triggeredGtts()`                                                      | `GetTrgOi`                                      | `TriggeredGtt[]`                                                                      |
 | `gttAlertTypes()`                                                      | `GetEnabledGTTs`                                | `string[]`                                                                            |
+| `placeOco(params)`                                                     | `PlaceOCOOrder`                                 | the alert id                                                                          |
+| `modifyOco(alertId, params)`                                           | `ModifyOCOOrder`                                | the acknowledged alert id                                                             |
+| `cancelOco(alertId)`                                                   | `CancelOCOOrder`                                | the acknowledged alert id                                                             |
 | `searchInstruments(text)`                                              | `SearchScrip`                                   | `ScripMatch[]`                                                                        |
 | `quote(exchange, token)`                                               | `GetQuotes`                                     | `Quote`                                                                               |
 | `securityInfo(exchange, token)`                                        | `GetSecurityInfo`                               | `SecurityInfo`                                                                        |
@@ -95,7 +98,7 @@ Python accepts it); `amo` must be a boolean (otherwise a `RequestValidationError
 the form body `jData=<json>` and the bearer token. The name is trimmed of whitespace and slashes and
 must be ASCII letters; a known name takes its documented spelling (`placeorder` is the never-retried
 `PlaceOrder`). `uid` is appended when absent. Values become wire text: a string as is, a boolean
-`Yes` or `No`, a finite number or `Decimal` as plain decimal text, a `bigint` as its digits. A
+`Yes` or `No`, a finite number or `Decimal` as plain decimal text, a `bigint` as its digits; a plain object or array of such values is sent nested (the OCO bodies), keys and items in order. A
 non-finite number, `null` or `undefined` throws a `TypeError` before sending. `stateChanging: true`
 means never retried, and an ambiguous outcome is `OrderStatusUnknownError` (known write endpoints are
 treated so whatever you pass). `expect` is `"object"` (default) or `"list"`. The result is the parsed
@@ -154,15 +157,16 @@ the default logger; the `Logger` and `LogContext` types describe a custom one
 
 ## Helpers
 
-| Name                                       | What                                                                                                                              |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `roundToTick(price, tickSize)`             | The price rounded to the tick grid, as text (a half-way price rounds away from zero)                                              |
-| `istDate("YYYY-MM-DD")`                    | A calendar-date time input (00:00 IST)                                                                                            |
-| `buildAuthorizeUrl(appKey)`                | The login page URL                                                                                                                |
-| `computeChecksum(appKey, secretKey, code)` | The lowercase hex SHA-256 of `appKey + secretKey + code`                                                                          |
-| `AccessToken`                              | The login result: `accessToken` (a masked `Secret`; `.reveal()` gives the text), `userId`, `issuedAt`, `expiresAt`, `isExpired()` |
-| `Decimal`                                  | decimal.js, re-exported                                                                                                           |
-| `VERSION`                                  | `"2.0.0"`                                                                                                                         |
+| Name                                       | What                                                                                                                                     |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `roundToTick(price, tickSize)`             | The price rounded to the tick grid, as text (a half-way price rounds away from zero)                                                     |
+| `istDate("YYYY-MM-DD")`                    | A calendar-date time input (00:00 IST)                                                                                                   |
+| `buildAuthorizeUrl(appKey)`                | The login page URL                                                                                                                       |
+| `computeChecksum(appKey, secretKey, code)` | The lowercase hex SHA-256 of `appKey + secretKey + code`                                                                                 |
+| `AccessToken`                              | The login result: `accessToken` (a masked `Secret`; `.reveal()` gives the text), `userId`, `issuedAt`, `expiresAt`, `isExpired()`        |
+| `Decimal`                                  | decimal.js, re-exported                                                                                                                  |
+| `isOco(gtt)`, `ocoSides(gtt)`              | OCO row helpers: is it an OCO; `{ stopLoss, target }` as `{ leg, triggerValue }`, or `null` when ambiguous (a repeated or equal trigger) |
+| `VERSION`                                  | `"2.1.0"`                                                                                                                                |
 
 ## Enums
 
@@ -171,22 +175,22 @@ the default logger; the `Logger` and `LogContext` types describe a custom one
 (`Exchange.NSE`, type `Exchange`). Request arguments also accept the word in any case or the wire
 code.
 
-| Enum              | Members (wire code)                                                                                                                                                                                      |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Exchange`        | `NSE`, `BSE`, `NFO`, `BFO`, `CDS`, `BCD`, `MCX`                                                                                                                                                          |
-| `TransactionType` | `BUY` (`B`), `SELL` (`S`)                                                                                                                                                                                |
-| `OrderType`       | `LIMIT` (`LMT`), `MARKET` (`MKT`), `SL` (`SL-LMT`), `SL_M` (`SL-MKT`)                                                                                                                                    |
-| `Validity`        | `DAY`, `IOC`, `EOS`                                                                                                                                                                                      |
-| `Product`         | `CNC` (`C`), `MIS` (`I`), `NRML` (`M`), `CO` (`H`), `BO` (`B`), `MTF` (`F`)                                                                                                                              |
-| `OrderStatus`     | `PENDING`, `OPEN`, `TRIGGER_PENDING`, `COMPLETE`, `CANCELED`, `REJECTED`                                                                                                                                 |
-| `GttValidity`     | `DAY`, `GTT`                                                                                                                                                                                             |
-| `GttAlertType`    | `LTP_ABOVE`, `LTP_BELOW`, `CHANGE_PERCENT_ABOVE`, `CHANGE_PERCENT_BELOW`, `ATP_ABOVE`, `ATP_BELOW`, `OI_ABOVE`, `OI_BELOW`, `TOI_ABOVE`, `TOI_BELOW`, `HIGH_52W_ABOVE`, `HIGH_52W_BELOW`, `VOLUME_ABOVE` |
+| Enum              | Members (wire code)                                                                                                                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exchange`        | `NSE`, `BSE`, `NFO`, `BFO`, `CDS`, `BCD`, `MCX`                                                                                                                                                                                 |
+| `TransactionType` | `BUY` (`B`), `SELL` (`S`)                                                                                                                                                                                                       |
+| `OrderType`       | `LIMIT` (`LMT`), `MARKET` (`MKT`), `SL` (`SL-LMT`), `SL_M` (`SL-MKT`)                                                                                                                                                           |
+| `Validity`        | `DAY`, `IOC`, `EOS`                                                                                                                                                                                                             |
+| `Product`         | `CNC` (`C`), `MIS` (`I`), `NRML` (`M`), `CO` (`H`), `BO` (`B`), `MTF` (`F`)                                                                                                                                                     |
+| `OrderStatus`     | `PENDING`, `OPEN`, `TRIGGER_PENDING`, `COMPLETE`, `CANCELED`, `REJECTED`                                                                                                                                                        |
+| `GttValidity`     | `DAY`, `GTT`                                                                                                                                                                                                                    |
+| `GttAlertType`    | `LTP_ABOVE`, `LTP_BELOW`, `CHANGE_PERCENT_ABOVE`, `CHANGE_PERCENT_BELOW`, `ATP_ABOVE`, `ATP_BELOW`, `OI_ABOVE`, `OI_BELOW`, `TOI_ABOVE`, `TOI_BELOW`, `HIGH_52W_ABOVE`, `HIGH_52W_BELOW`, `VOLUME_ABOVE`, `OCO_BUY`, `OCO_SELL` |
 
 ## Models
 
 Exported types (all fields `readonly`, camelCase): `UserDetails`, `ProductInfo`, `Limits`, `Position`,
 `Holding`, `HoldingInstrument`, `Order`, `OrderHistoryEntry`, `Trade`, `OrderAck`, `OrderMargin`,
-`SlicedOrderResult`, `Gtt`, `TriggeredGtt`, `ScripMatch`, `Quote`, `SecurityInfo`, `OptionContract`,
+`SlicedOrderResult`, `Gtt`, `TriggeredGtt`, `OcoLegRow`, `OcoTrigger`, `OcoSide`, `OcoLeg`, `PlaceOcoParams`, `ModifyOcoParams`, `ScripMatch`, `Quote`, `SecurityInfo`, `OptionContract`,
 `Candle`, `DailyCandle`, `OptionGreeks`, `OptionChainSnapshot`, `ChainRow`, `MaxPain`, `BuildupReading`, and for the stream `TouchlineAck`, `TouchlineFeed`, `DepthAck`, `DepthFeed`,
 `OrderUpdate`, `PositionAck`, `PositionUpdate`, `ConnectAck`, `HeartbeatAck`, `UnsubscribeAck`,
 `UnknownMessage` (the union of those a callback or iterator receives is `InboundStreamMessage`).

@@ -73,6 +73,18 @@ const MODIFY = {
   order_type: "LMT",
   product: "M",
 };
+const OCO = {
+  exchange: "NSE",
+  tradingsymbol: "SBIN-EQ",
+  transaction_type: "S",
+  quantity: 1,
+  product: "C",
+  stop_loss: { trigger_value: "95", price: "94.5", order_type: "LMT", trigger_price: null },
+  target: { trigger_value: "105", price: "105", order_type: "LMT", trigger_price: null },
+  validity: "DAY",
+  alert_validity: "GTT",
+  tag: "driver-test-oco",
+};
 const GTT = {
   exchange: "NSE",
   tradingsymbol: "SBIN-EQ",
@@ -117,7 +129,7 @@ async function converse(
     client,
     {
       nonce: extra.nonce ?? NONCE,
-      version: "2.0.0",
+      version: "2.1.0",
       environment: "uat",
       capture,
       secrets: extra.secrets ?? [],
@@ -177,18 +189,18 @@ function keysAnywhere(value: unknown): string[] {
 // ---------------------------------------------------------------------------------------------
 
 describe("the handshake", () => {
-  it("is the first line: sdk, version, environment, client id, the nonce and protocol 1", async () => {
+  it("is the first line: sdk, version, environment, client id, the nonce and protocol 2", async () => {
     const w = wire();
     const run = await converse(w.client, w.capture, []);
     expect(run.hello).toEqual({
       sdk: "javascript",
-      version: "2.0.0",
+      version: "2.1.0",
       environment: "uat",
       client_id: "OFFLINE01",
       run: NONCE,
-      protocol: 1,
+      protocol: 2,
     });
-    expect(PROTOCOL).toBe(1);
+    expect(PROTOCOL).toBe(2);
     expect(run.code).toBe(0); // end of file: a clean exit
     expect(run.replies).toEqual([]);
   });
@@ -198,7 +210,7 @@ describe("the handshake", () => {
     const out: string[] = [];
     const code = await serve(Readable.from([]), { write: (t: string) => out.push(t) }, w.client, {
       nonce: "  ",
-      version: "2.0.0",
+      version: "2.1.0",
       environment: "uat",
       capture: w.capture,
     });
@@ -267,6 +279,47 @@ describe("state-changing calls: one SDK call, the wire body in the reply", () =>
       "ModifyGTTOrder",
       "CancelGTTOrder",
     ]);
+  });
+
+  it("place_oco, modify_oco and cancel_oco answer the alert id with the wire body", async () => {
+    const w = wire();
+    const spy = vi.spyOn(w.client, "placeOco");
+    const placed = await one(w, "place_oco", OCO);
+    expect(spy).toHaveBeenCalledTimes(1);
+    const sent = spy.mock.calls[0]?.[0] as unknown as Json;
+    const stopLoss = sent["stopLoss"] as Json;
+    expect(Decimal.isDecimal(stopLoss["triggerValue"])).toBe(true);
+    expect(String(stopLoss["price"])).toBe("94.5");
+    expect(stopLoss["orderType"]).toBe("LMT");
+    expect(stopLoss).not.toHaveProperty("triggerPrice");
+    expect(sent["alertValidity"]).toBe("GTT");
+    const alert = placed["result"] as string;
+    expect(placed["raw"]).toMatchObject({ al_id: alert });
+    expect(placed["http_status"]).toBe(200);
+    const modified = await one(w, "modify_oco", {
+      alert_id: alert,
+      ...OCO,
+      stop_loss: { ...(OCO.stop_loss as Json), trigger_value: "96" },
+    });
+    expect(modified["result"]).toBe(alert);
+    expect(modified["raw"]).toBeTruthy();
+    const cancelled = await one(w, "cancel_oco", { alert_id: alert });
+    expect(cancelled["result"]).toBe(alert);
+    expect(cancelled["http_status"]).toBe(200);
+    expect(w.state.requests.map((r) => r.endpoint)).toEqual([
+      "PlaceOCOOrder",
+      "ModifyOCOOrder",
+      "CancelOCOOrder",
+    ]);
+  });
+
+  it("an OCO leg that is not an object, or has a bad price, is refused before any call", async () => {
+    const w = wire();
+    const spy = vi.spyOn(w.client, "placeOco");
+    await one(w, "place_oco", { ...OCO, stop_loss: "95" });
+    await one(w, "place_oco", { ...OCO, target: { ...(OCO.target as Json), price: "abc" } });
+    expect(spy).not.toHaveBeenCalled();
+    expect(w.state.requests).toHaveLength(0);
   });
 
   it("place_sliced_order is one SDK call; its result carries a wire body per placed slice", async () => {
@@ -555,6 +608,9 @@ describe("every protocol method is one SDK call by name", () => {
     "place_gtt",
     "modify_gtt",
     "cancel_gtt",
+    "place_oco",
+    "modify_oco",
+    "cancel_oco",
   ];
   const READS = [
     "profile",
@@ -598,6 +654,9 @@ describe("every protocol method is one SDK call by name", () => {
       "placeGtt",
       "modifyGtt",
       "cancelGtt",
+      "placeOco",
+      "modifyOco",
+      "cancelOco",
       "profile",
       "margins",
       "positions",
@@ -659,6 +718,9 @@ describe("every protocol method is one SDK call by name", () => {
     place_gtt: GTT,
     modify_gtt: { alert_id: "1", ...GTT },
     cancel_gtt: { alert_id: "1" },
+    place_oco: OCO,
+    modify_oco: { alert_id: "1", ...OCO },
+    cancel_oco: { alert_id: "1" },
     request: { endpoint: "Limits", payload: {}, state_changing: false },
   };
 
@@ -688,6 +750,9 @@ describe("every protocol method is one SDK call by name", () => {
         "placeGtt",
         "modifyGtt",
         "cancelGtt",
+        "placeOco",
+        "modifyOco",
+        "cancelOco",
         "profile",
         "margins",
         "positions",
@@ -818,7 +883,7 @@ describe("the protocol loop", () => {
       Readable.from([text.slice(0, 10), text.slice(10, 50), text.slice(50)]),
       { write: (t: string) => out.push(t) },
       client,
-      { nonce: NONCE, version: "2.0.0", environment: "uat", capture: new WireCapture() },
+      { nonce: NONCE, version: "2.1.0", environment: "uat", capture: new WireCapture() },
     );
     expect(code).toBe(0);
     expect(calls).toEqual(["profile", "profile"]);
@@ -876,7 +941,7 @@ describe("the protocol loop", () => {
       Readable.from([request(1, "profile")]),
       { write: (t: string) => out.push(t) },
       client,
-      { nonce: NONCE, version: "2.0.0", environment: "uat", capture: new WireCapture() },
+      { nonce: NONCE, version: "2.1.0", environment: "uat", capture: new WireCapture() },
     );
     expect(code).toBe(1);
     expect(calls).toEqual([]);
@@ -1019,7 +1084,7 @@ describe("the start-up refusal", () => {
       Promise.resolve({
         client: w.client,
         capture: w.capture,
-        version: "2.0.0",
+        version: "2.1.0",
         environment: "uat",
         secrets: [],
         close,
@@ -1251,7 +1316,7 @@ describe("buildFromEnvironment (the program's build path, offline)", () => {
         });
         expect(built.client.clientId).toBe("UAT123");
         expect(built.environment).toBe("uat");
-        expect(built.version).toBe("2.0.0");
+        expect(built.version).toBe("2.1.0");
         expect(built.client.config.baseUrl).toBe(URLS.TRADESMART_ENV_BASE_URL);
         expect(built.secrets).toContain(token);
         expect(built.capture.dispatched).toBe(0); // building sends nothing

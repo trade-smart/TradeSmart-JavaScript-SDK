@@ -12,6 +12,8 @@ import {
   NetworkError,
   OrderRejectedError,
   OrderStatusUnknownError,
+  isOco,
+  ocoSides,
   RateLimitError,
   ResponseParseError,
   ServerError,
@@ -473,6 +475,328 @@ describe("GTT", () => {
       "GTT not found to Cancel",
     );
     expect(() => broker.triggerGtt(id)).toThrow(/no pending GTT/);
+  });
+});
+
+describe("OCO", () => {
+  const OCO = {
+    exchange: "NSE",
+    tradingsymbol: "SBIN-EQ",
+    transactionType: "B",
+    product: "C",
+    quantity: 1,
+    stopLoss: { triggerValue: "820", price: "822" },
+    target: { triggerValue: "760", price: "758" },
+  } as const;
+  const BASE = "https://offline.tradesmart.invalid/NorenWClientAPIv2";
+  const fixtureJson = (name: string): Record<string, unknown> =>
+    JSON.parse(readFileSync(path.join(FIXTURES, name), "utf8")) as Record<string, unknown>;
+
+  it("place lists one OCO row with the sent legs; modify moves the triggers", async () => {
+    const { broker, client } = setup();
+    broker.addInstrument("NSE", "3045", "SBIN-EQ");
+    const id = await client.placeOco(OCO);
+    expect(id).toMatch(/^\d{6}00000001$/);
+    const pending = await client.pendingGtts();
+    expect(pending).toHaveLength(1);
+    const [row] = pending;
+    expect(row === undefined ? false : isOco(row)).toBe(true);
+    const sides = row === undefined ? null : ocoSides(row);
+    expect(sides?.stopLoss.triggerValue.toString()).toBe("820");
+    expect(sides?.stopLoss.leg.price?.toString()).toBe("822");
+    expect(sides?.target.triggerValue.toString()).toBe("760");
+    expect(sides?.target.leg.price?.toString()).toBe("758");
+    await expect(
+      client.modifyOco(id, {
+        ...OCO,
+        validity: "DAY",
+        alertValidity: "GTT",
+        stopLoss: { triggerValue: "830", price: "832" },
+        target: { triggerValue: "750", price: "748" },
+      }),
+    ).resolves.toBe(id);
+    const [moved] = await client.pendingGtts();
+    const after = moved === undefined ? null : ocoSides(moved);
+    expect(after?.stopLoss.triggerValue.toString()).toBe("830");
+    expect(after?.target.triggerValue.toString()).toBe("750");
+    expect(await client.pendingGtts()).toHaveLength(1);
+  });
+
+  it("cancel leaves the pending list and is CANCELLED in the triggered list", async () => {
+    const { broker, client } = setup();
+    broker.addInstrument("NSE", "3045", "SBIN-EQ");
+    const id = await client.placeOco(OCO);
+    await expect(client.cancelOco(id)).resolves.toBe(id);
+    expect(await client.pendingGtts()).toEqual([]);
+    const [gone] = await client.triggeredGtts();
+    expect(gone?.alertId).toBe(id);
+    expect(gone?.raw["stat"]).toBe("CANCELLED");
+    const modify = await rejection(
+      client.modifyOco(id, { ...OCO, validity: "DAY", alertValidity: "GTT" }),
+    );
+    expect(modify).toBeInstanceOf(OrderRejectedError);
+    expect(await rejection(client.cancelOco(id))).toBeInstanceOf(OrderRejectedError);
+    expect(await rejection(client.cancelOco("nosuch"))).toBeInstanceOf(OrderRejectedError);
+  });
+
+  it("a missing leg field is an Invalid Input refusal", async () => {
+    const { client } = setup();
+    const error = await client
+      .request(
+        "PlaceOCOOrder",
+        { tsym: "SBIN-EQ", exch: "NSE", validity: "GTT", ai_t: "LMT_BOS_O" },
+        { stateChanging: true },
+      )
+      .catch((e: unknown) => e);
+    expect((error as OrderRejectedError).emsg).toMatch(/^Invalid Input : /);
+  });
+
+  it("a non-OCO ai_t is refused on place and modify; the OCO is unchanged", async () => {
+    const { broker, client } = setup();
+    broker.addInstrument("NSE", "3045", "SBIN-EQ");
+    const leg = (prc: string): Record<string, string> => ({
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      trantype: "B",
+      prctyp: "LMT",
+      prd: "C",
+      ret: "DAY",
+      actid: "TEST123",
+      qty: "1",
+      prc,
+      ordersource: "API",
+    });
+    const body = (aiT: string): Record<string, unknown> => ({
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      validity: "GTT",
+      ai_t: aiT,
+      oivariable: [
+        { var_name: "x", d: "820" },
+        { var_name: "y", d: "760" },
+      ],
+      place_order_params: leg("822"),
+      place_order_params_leg2: leg("758"),
+    });
+    const send = (endpoint: string, payload: Record<string, unknown>): Promise<unknown> =>
+      client.request(endpoint, payload as never, { stateChanging: true }).catch((e: unknown) => e);
+    const refused = await send("PlaceOCOOrder", body("LTP"));
+    expect((refused as OrderRejectedError).emsg).toMatch(/^Invalid Input : ai_t/);
+    expect(await client.pendingGtts()).toEqual([]);
+    const placed = (await send("PlaceOCOOrder", body("LMT_BOS_O"))) as { al_id: string };
+    const bad = await send("ModifyOCOOrder", { ...body("LTP"), al_id: placed.al_id });
+    expect((bad as OrderRejectedError).emsg).toMatch(/^Invalid Input : ai_t/);
+    const [row] = await client.pendingGtts();
+    expect(row === undefined ? false : isOco(row)).toBe(true);
+    const switched = (await send("ModifyOCOOrder", {
+      ...body("LMT_SOB_O"),
+      al_id: placed.al_id,
+    })) as { stat: string };
+    expect(switched.stat).toBe("OI replaced");
+  });
+
+  it("a GTT modify or cancel on an OCO alert id is 'not found' and ModifyOCOOrder on a GTT id is Invalid Oi", async () => {
+    const { broker, client } = setup();
+    broker.addInstrument("NSE", "3045", "SBIN-EQ");
+    const leg = (prc: string): Record<string, unknown> => ({
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      trantype: "B",
+      prctyp: "LMT",
+      prd: "C",
+      ret: "DAY",
+      actid: "TEST123",
+      qty: "1",
+      prc,
+      ordersource: "API",
+    });
+    const body = {
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      validity: "GTT",
+      ai_t: "LMT_BOS_O",
+      oivariable: [
+        { var_name: "x", d: "820" },
+        { var_name: "y", d: "760" },
+      ],
+      place_order_params: leg("822"),
+      place_order_params_leg2: leg("758"),
+    };
+    const placed = (await client.request("PlaceOCOOrder", body as never, {
+      stateChanging: true,
+    })) as { al_id: string };
+    const before = await client.pendingGtts();
+    expect(before).toHaveLength(1);
+    const cancel = await rejection(client.cancelGtt(placed.al_id));
+    expect((cancel as OrderRejectedError).emsg).toBe("GTT not found to Cancel");
+    const modify = await rejection(client.modifyGtt(placed.al_id, GTT));
+    expect((modify as OrderRejectedError).emsg).toBe("GTT not found to Modify");
+    expect(await client.pendingGtts()).toEqual(before);
+    const gttId = await client.placeGtt(GTT);
+    const invalid = (await client
+      .request("ModifyOCOOrder", { ...body, al_id: gttId } as never, { stateChanging: true })
+      .catch((e: unknown) => e)) as { stat?: string; emsg?: string; raw?: { stat?: string } };
+    expect(JSON.stringify(invalid)).toContain("Invalid Oi");
+    expect((await client.pendingGtts()).map((g) => g.alertId)).toContain(gttId);
+  });
+
+  it("the replies have the shape of the shared fixtures", async () => {
+    const state = new BrokerState();
+    const dispatcher = new OfflineDispatcher(state);
+    const send = async (endpoint: string, payload: object): Promise<Record<string, unknown>> => {
+      const u = new URL(`${BASE}/${endpoint}`);
+      const res = await dispatcher.request({
+        origin: u.origin,
+        path: u.pathname,
+        method: "POST",
+        body: `jData=${JSON.stringify(payload)}`,
+      });
+      return JSON.parse(await res.body.text()) as Record<string, unknown>;
+    };
+    const leg = (trantype: string, prc: string): object => ({
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      trantype,
+      prctyp: "LMT",
+      prd: "C",
+      ret: "DAY",
+      actid: "TEST123",
+      qty: "1",
+      prc,
+      ordersource: "API",
+    });
+    const body = {
+      uid: "TEST123",
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      validity: "GTT",
+      ai_t: "LMT_BOS_O",
+      oivariable: [
+        { var_name: "x", d: "820" },
+        { var_name: "y", d: "760" },
+      ],
+      place_order_params: leg("B", "822"),
+      place_order_params_leg2: leg("B", "758"),
+    };
+    const shape = (reply: Record<string, unknown>): [string[], unknown] => [
+      Object.keys(reply).sort(),
+      reply["stat"],
+    ];
+    const placed = await send("PlaceOCOOrder", body);
+    expect(shape(placed)).toEqual(shape(fixtureJson("place_oco_success.json")));
+    const id = placed["al_id"];
+    const modified = await send("ModifyOCOOrder", { ...body, al_id: id });
+    expect(shape(modified)).toEqual(shape(fixtureJson("modify_oco_success.json")));
+    expect(modified["al_id"]).toBe(id);
+    const cancelled = await send("CancelOCOOrder", { uid: "TEST123", al_id: id });
+    expect(shape(cancelled)).toEqual(shape(fixtureJson("cancel_oco_success.json")));
+    const again = await send("ModifyOCOOrder", { ...body, al_id: id });
+    expect(again["al_id"]).toBe(id);
+    expect(Object.keys(again).sort()).toEqual(["al_id", "request_time", "stat"]);
+    expect(again["stat"]).toBe(fixtureJson("modify_oco_invalid.json")["stat"]);
+  });
+
+  describe("rows and refusals answer as the reference broker does", () => {
+    const send = async (
+      dispatcher: OfflineDispatcher,
+      endpoint: string,
+      payload: object,
+    ): Promise<unknown> => {
+      const u = new URL(`${BASE}/${endpoint}`);
+      const res = await dispatcher.request({
+        origin: u.origin,
+        path: u.pathname,
+        method: "POST",
+        body: `jData=${JSON.stringify(payload)}`,
+      });
+      return JSON.parse(await res.body.text()) as unknown;
+    };
+    const leg = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      trantype: "B",
+      prctyp: "LMT",
+      prd: "C",
+      ret: "DAY",
+      actid: "TEST123",
+      qty: "1",
+      prc: "822",
+      ordersource: "API",
+      ...extra,
+    });
+    const body = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+      uid: "TEST123",
+      tsym: "SBIN-EQ",
+      exch: "NSE",
+      validity: "GTT",
+      ai_t: "LMT_BOS_O",
+      oivariable: [
+        { var_name: "x", d: "820" },
+        { var_name: "y", d: "760" },
+      ],
+      place_order_params: leg(),
+      place_order_params_leg2: leg({ prctyp: "SL-LMT", prc: "758", trgprc: "759" }),
+      ...extra,
+    });
+    const TIME = /^\d\d:\d\d:\d\d \d\d-\d\d-\d{4}$/;
+
+    it("rows carry norentm / upd_tm and a leg's trgprc when it was sent", async () => {
+      const dispatcher = new OfflineDispatcher(new BrokerState());
+      const placed = (await send(dispatcher, "PlaceOCOOrder", body())) as { al_id: string };
+      const [row] = (await send(dispatcher, "GetPendingGTTOrder", { uid: "TEST123" })) as Record<
+        string,
+        Record<string, unknown>
+      >[];
+      expect(row?.["norentm"]).toMatch(TIME);
+      expect(row?.["upd_tm"]).toBe(row?.["norentm"]);
+      expect(row?.["place_order_params"]).not.toHaveProperty("trgprc");
+      // no address is ever invented, not even a placeholder (as the reference broker)
+      expect(row?.["place_order_params"]).not.toHaveProperty("ipaddr");
+      expect(row?.["place_order_params_leg2"]).not.toHaveProperty("ipaddr");
+      expect(row?.["place_order_params_leg2"]?.["trgprc"]).toBe("759.00");
+      await send(dispatcher, "CancelOCOOrder", { uid: "TEST123", al_id: placed.al_id });
+      const triggered = (await send(dispatcher, "GetTrgOi", {
+        uid: "TEST123",
+        actid: "TEST123",
+      })) as Record<string, unknown>[];
+      const cancelled = triggered.find((r) => r["al_id"] === placed.al_id);
+      expect(cancelled?.["stat"]).toBe("CANCELLED");
+      expect(cancelled?.["norentm"]).toBe(row?.["norentm"]);
+      expect(cancelled?.["upd_tm"]).toBe(row?.["norentm"]);
+    });
+
+    it("a refusal names the missing fields in the reference order, one problem at a time", async () => {
+      const dispatcher = new OfflineDispatcher(new BrokerState());
+      const emsg = async (payload: object): Promise<unknown> =>
+        ((await send(dispatcher, "PlaceOCOOrder", payload)) as { emsg?: string }).emsg;
+      expect(await emsg(body({ tsym: "", exch: "", validity: "", ai_t: "" }))).toBe(
+        "Invalid Input : exch, tsym, ai_t, validity required",
+      );
+      expect(await emsg(body({ tsym: "", place_order_params: "x" }))).toBe(
+        "Invalid Input : tsym required",
+      );
+      expect(await emsg(body({ ai_t: "LTP_B_O" }))).toBe(
+        "Invalid Input : ai_t must be one of LMT_BOS_O, LMT_SOB_O",
+      );
+      const twoX = [
+        { var_name: "x", d: "820" },
+        { var_name: "x", d: "760" },
+      ];
+      for (const oivariable of [twoX, [{ var_name: "x", d: "820" }], "x"]) {
+        expect(await emsg(body({ oivariable }))).toBe(
+          "Invalid Input : oivariable required: one trigger each for x and y",
+        );
+      }
+      expect(await emsg(body({ place_order_params: "x" }))).toBe(
+        "Invalid Input : place_order_params required",
+      );
+      expect(await emsg(body({ place_order_params_leg2: leg({ ret: "", qty: "" }) }))).toBe(
+        "Invalid Input : place_order_params_leg2: ret, qty required",
+      );
+      expect(await send(dispatcher, "GetPendingGTTOrder", { uid: "TEST123" })).toMatchObject({
+        stat: "Not_Ok",
+      });
+    });
   });
 });
 

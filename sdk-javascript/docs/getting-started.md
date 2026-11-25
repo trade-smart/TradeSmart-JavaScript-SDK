@@ -50,7 +50,7 @@ The SDK has four runtime dependencies (`decimal.js`, `undici`, `ws`, `fflate`). 
 ```ts
 import { VERSION } from "tradesmart";
 
-console.log(VERSION); // 2.0.0
+console.log(VERSION); // 2.1.0
 ```
 
 ## 3. Log in once a day

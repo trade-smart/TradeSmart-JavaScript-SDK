@@ -6,7 +6,7 @@ language's real SDK and executes the matrix's calls with it. This document is th
 the harness and a driver. It is the same for every language.
 
 A driver covers the **state-changing calls** the matrix makes: `place_order`, `place_sliced_order`,
-`modify_order`, `cancel_order`, `exit_order`, `place_gtt`, `modify_gtt` and `cancel_gtt`. The protocol
+`modify_order`, `cancel_order`, `exit_order`, `place_gtt`, `modify_gtt`, `cancel_gtt`, `place_oco`, `modify_oco` and `cancel_oco`. The protocol
 also carries the read methods and `request`, so a driver can be tested in full, but the harness keeps
 its own reads (order book, account match, limits check, quotes, instruments, teardown checks) on its
 own Python client as an independent referee. The async-client and stream family of the matrix runs for
@@ -47,7 +47,7 @@ login as the SDK's own live tests, and never writes them anywhere.
 The first line the driver writes, once its client is built:
 
 ```json
-{"hello": {"sdk": "javascript", "version": "2.0.0", "environment": "uat", "client_id": "<id>", "run": "<nonce>", "protocol": 1}}
+{"hello": {"sdk": "javascript", "version": "2.1.0", "environment": "uat", "client_id": "<id>", "run": "<nonce>", "protocol": 2}}
 ```
 
 - `sdk`: the SDK's name (`python`, `javascript`), `version`: its version.
@@ -59,11 +59,11 @@ The first line the driver writes, once its client is built:
   mismatch, before any request. The harness never records it.
 - `run`: the nonce of `TRADESMART_LIVE_DRIVER_RUN`, echoed unchanged, so the harness knows the
   driver is the one it started for this run.
-- `protocol`: the version of this document, `1`.
+- `protocol`: the version of this document, `2` (version 2 added the OCO calls; a driver that reports a lower version is refused at start-up, before any order).
 
 The harness sends nothing before the hello. A first line that is not this object, a missing or
 different field (an unknown `sdk`, no `version`, another `environment`, `run` or `client_id`, a
-`protocol` other than `1`), or no line within the reply timeout: the harness kills the driver's
+`protocol` other than `2`), or no line within the reply timeout: the harness kills the driver's
 process tree and refuses the run before any order.
 
 ## Request
@@ -77,13 +77,22 @@ process tree and refuses the run before any order.
 - `args`: an object of the method's arguments by their contract (snake_case) names. Positional
   arguments are given by name too. An argument that is absent is not sent.
 - **One request is exactly one SDK call.** The driver never retries, batches, splits or adds calls of
-  its own, whatever the outcome. In particular it never repeats a place, modify, cancel, exit or GTT
+  its own, whatever the outcome. In particular it never repeats a place, modify, cancel, exit, GTT or OCO
   call, and never reads the order book to find out what happened.
 
 Argument values use the **value encoding of the conformance vectors**: Decimals as strings, `null`
 for "no value", dates `YYYY-MM-DD`, instants as ISO 8601 with the IST offset, times `HH:MM` in IST,
 enums by their string value. A driver converts them to its language's own types before calling the SDK
 (a price string becomes the SDK's exact decimal type, never a binary float).
+
+The OCO calls (protocol 2) take the client's own keywords: `place_oco` and `modify_oco` carry
+`exchange`, `tradingsymbol`, `transaction_type`, `quantity`, `product`, `stop_loss`, `target`,
+`validity` and `alert_validity` (`place_oco` also an optional `tag`; `modify_oco` also `alert_id`);
+`cancel_oco` carries `alert_id`. Each leg (`stop_loss`, `target`) is a JSON object
+`{"trigger_value": "95", "price": "94.5", "order_type": "LMT", "trigger_price": "95"}` (prices as
+strings). Their replies are those of the GTT calls: the alert id as `result`, the mandatory `raw` and
+`http_status`, classified by the harness with the Python parser for `PlaceOCOOrder`,
+`ModifyOCOOrder` or `CancelOCOOrder`.
 
 ## Reply
 
@@ -109,7 +118,7 @@ its response body (`raw`, account-id keys removed as below) and its HTTP status 
 `sliced_result` carries `slices`, the one returned and the partial one inside an error reply.
 
 A reply to a state-changing call that returns an id (`place_order`, `modify_order`, `cancel_order`,
-`exit_order`, `place_gtt`, `modify_gtt`, `cancel_gtt`) **must** also carry, beside `result`:
+`exit_order`, `place_gtt`, `modify_gtt`, `cancel_gtt`, `place_oco`, `modify_oco`, `cancel_oco`) **must** also carry, beside `result`:
 
 ```json
 {"id": 7, "result": "240101000012345", "raw": {"stat": "Ok", "norenordno": "240101000012345"}, "http_status": 200}

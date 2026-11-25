@@ -244,6 +244,24 @@ describe("candles, GTT, chain and listeners", () => {
     expect(broker.orders[0]?.status).toBe("TRIGGER_PENDING");
   });
 
+  it("triggerGtt on an OCO alert is refused with the exact message", async () => {
+    const { broker, client } = setup();
+    const id = await client.placeOco({
+      exchange: "NSE",
+      tradingsymbol: "SBIN-EQ",
+      transactionType: "B",
+      product: "C",
+      quantity: 1,
+      stopLoss: { triggerValue: "820", price: "822" },
+      target: { triggerValue: "760", price: "758" },
+    });
+    expect(() => broker.triggerGtt(id)).toThrow(
+      new Error("OCO triggering is not simulated: no fired OCO has been observed yet"),
+    );
+    expect(await client.pendingGtts()).toHaveLength(1);
+    expect(broker.orders).toHaveLength(0);
+  });
+
   it("the option chain honours the count and orders strikes, CE before PE", async () => {
     const { broker, client } = setup();
     addNifty(broker);

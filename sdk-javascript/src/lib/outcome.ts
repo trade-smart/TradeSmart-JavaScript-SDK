@@ -23,6 +23,9 @@ const ORDER_ENDPOINTS: ReadonlySet<string> = new Set([
   "PlaceGTTOrder",
   "ModifyGTTOrder",
   "CancelGTTOrder",
+  "PlaceOCOOrder",
+  "ModifyOCOOrder",
+  "CancelOCOOrder",
   "PlaceIceBergOrder",
   "ModifyIceBergOrder",
   "CancelIceBergOrder",
@@ -32,6 +35,9 @@ const GTT_WRITES: ReadonlySet<string> = new Set([
   "PlaceGTTOrder",
   "ModifyGTTOrder",
   "CancelGTTOrder",
+  "PlaceOCOOrder",
+  "ModifyOCOOrder",
+  "CancelOCOOrder",
 ]);
 
 /** Whether `endpoint` (canonical spelling) is an order endpoint whose outcome is logged. */
@@ -52,7 +58,7 @@ export function outcomeId(endpoint: string, payload: WirePayload, ackId: unknown
   if (typeof ackId === "string" && ackId.trim() !== "") return ackId.trim();
   const key = GTT_WRITES.has(endpoint) ? "al_id" : "norenordno";
   for (const [name, value] of payload) {
-    if (name === key && value !== "") return value;
+    if (name === key && typeof value === "string" && value !== "") return value;
   }
   return "-";
 }

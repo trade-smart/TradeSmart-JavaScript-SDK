@@ -47,6 +47,20 @@ describe("gen-models", () => {
     expect([...second.entries()]).toEqual([...first.entries()]);
   });
 
+  it("parses the fields of a nested record strictly; the parent's field stays lenient", () => {
+    // sdk-behaviour.md 2.9: a nested record that fails to parse is null as a whole, so a field
+    // of a model another model nests (OcoLegRow, OcoTrigger) must throw, not null itself.
+    const gtt = first.get("gtt.ts") ?? "";
+    for (const nested of ["OcoTriggerSpec", "OcoLegRowSpec"]) {
+      const start = gtt.indexOf(`export const ${nested}: ModelSpec`);
+      expect(start, nested).toBeGreaterThanOrEqual(0);
+      const body = gtt.slice(start, gtt.indexOf("};", start));
+      expect(body, nested).not.toContain("lenient: true");
+    }
+    expect(gtt).toMatch(/name: "ocoFirst",[^}]*lenient: true/);
+    expect(gtt).toMatch(/name: "ocoTriggers",[^}]*lenient: true/);
+  });
+
   it(
     "rejects a type outside the closed vocabulary",
     async () => {

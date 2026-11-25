@@ -21,11 +21,25 @@ export interface EndpointInfo {
 const OK_WORDS: readonly string[] = Object.freeze(["Ok"]);
 const ICEBERG_WORDS: readonly string[] = Object.freeze(["true"]);
 
-/** The documented success word of each GTT write; compared ignoring letter case only. */
-const GTT_WORDS: Readonly<Record<string, string>> = Object.freeze({
+/**
+ * The success word of each GTT and OCO write; compared ignoring letter case only. The GTT cancel
+ * word is the one observed on the API (`OI deleted`); the documented `Oi delete success` is not.
+ */
+const ALERT_WORDS: Readonly<Record<string, string>> = Object.freeze({
   PlaceGTTOrder: "Oi created",
   ModifyGTTOrder: "Oi replaced",
-  CancelGTTOrder: "Oi delete success",
+  CancelGTTOrder: "OI deleted",
+  PlaceOCOOrder: "OI created",
+  ModifyOCOOrder: "OI replaced",
+  CancelOCOOrder: "OI deleted",
+});
+
+/** The definite-failure `stat` of the modify and cancel writes (letter case ignored, untrimmed). */
+export const FAILURE_WORDS: Readonly<Record<string, string>> = Object.freeze({
+  ModifyGTTOrder: "Invalid Oi",
+  CancelGTTOrder: "Invalid Oi",
+  ModifyOCOOrder: "Invalid Oi",
+  CancelOCOOrder: "Invalid Oi",
 });
 
 const ICEBERG_ENDPOINTS: ReadonlySet<string> = new Set([
@@ -44,6 +58,9 @@ const STATE_CHANGING: ReadonlySet<string> = new Set([
   "PlaceGTTOrder",
   "ModifyGTTOrder",
   "CancelGTTOrder",
+  "PlaceOCOOrder",
+  "ModifyOCOOrder",
+  "CancelOCOOrder",
   "PlaceIceBergOrder",
   "ModifyIceBergOrder",
   "CancelIceBergOrder",
@@ -83,7 +100,7 @@ export function canonicalEndpoint(name: string): EndpointInfo {
     );
   }
   const endpoint = CANONICAL.get(trimmed.toLowerCase()) ?? trimmed;
-  const gttWord = GTT_WORDS[endpoint];
+  const gttWord = ALERT_WORDS[endpoint];
   const iceberg = ICEBERG_ENDPOINTS.has(endpoint);
   return Object.freeze({
     endpoint,
@@ -131,6 +148,16 @@ function fold(text: string): string {
     else out += ASCII_FOLDS[char] ?? char;
   }
   return out;
+}
+
+/**
+ * Whether `stat` is the definite-failure word of the endpoint (§4.2.1): `Invalid Oi` on the GTT
+ * and OCO modify and cancel only, letter case ignored, nothing trimmed.
+ */
+export function isFailureWord(endpoint: string, stat: unknown): boolean {
+  if (typeof stat !== "string") return false;
+  const word = FAILURE_WORDS[endpoint];
+  return word !== undefined && fold(word) === fold(stat);
 }
 
 /**

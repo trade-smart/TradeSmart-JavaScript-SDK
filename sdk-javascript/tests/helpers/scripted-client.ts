@@ -124,7 +124,7 @@ export const POOL_TIMEOUT_CONFIG: ClientConfigInit = {
 /** Build the scripted client. `replies` answer the requests in turn; the last one repeats. */
 export function scriptedClient(
   replies: readonly Reply[],
-  options: { token?: TokenKind; config?: ClientConfigInit } = {},
+  options: { token?: TokenKind; config?: ClientConfigInit; clientId?: string } = {},
 ): Scripted {
   const lines: LogLine[] = [];
   const agent = new MockAgent();
@@ -191,7 +191,7 @@ export function scriptedClient(
     logger: recordingLogger(lines),
     ...options.config,
   });
-  const client = new TradeSmart("TEST123", {
+  const client = new TradeSmart(options.clientId ?? "TEST123", {
     ...(token === "valid" ? { accessToken: TOKEN } : {}),
     ...(token === "expired" ? { accessToken: expiredToken() } : {}),
     config,
@@ -287,6 +287,19 @@ const GTT = {
   price: "1500",
 };
 
+const OCO_ALERT_ID = "26111800000001";
+const OCO = {
+  exchange: "NSE",
+  tradingsymbol: "INFY-EQ",
+  transactionType: "SELL",
+  quantity: 1,
+  product: "CNC",
+  stopLoss: { triggerValue: "1450", price: "1445" },
+  target: { triggerValue: "1550", price: "1545" },
+  validity: "DAY",
+  alertValidity: "GTT",
+};
+
 type Typed = (c: TradeSmart, invalid: boolean, opts: { signal?: AbortSignal }) => Promise<unknown>;
 
 const TYPED: Readonly<Record<string, Typed>> = {
@@ -300,6 +313,10 @@ const TYPED: Readonly<Record<string, Typed>> = {
   modify_gtt: (c, invalid, opts) =>
     c.modifyGtt(ALERT_ID, { ...GTT, quantity: invalid ? 0 : 1 }, opts),
   cancel_gtt: (c, invalid, opts) => c.cancelGtt(invalid ? "" : ALERT_ID, opts),
+  place_oco: (c, invalid, opts) => c.placeOco({ ...OCO, quantity: invalid ? 0 : 1 }, opts),
+  modify_oco: (c, invalid, opts) =>
+    c.modifyOco(OCO_ALERT_ID, { ...OCO, quantity: invalid ? 0 : 1 }, opts),
+  cancel_oco: (c, invalid, opts) => c.cancelOco(invalid ? "" : OCO_ALERT_ID, opts),
 };
 
 /** Run one vector `call` on the client; `signal` is the interruption's (`keyboard_interrupt`). */
@@ -318,6 +335,8 @@ export function invoke(
       return c.request("placegttorder", { exch: "NSE" }, opts);
     case "request_cancel_gtt":
       return c.request("CANCELGTTORDER", { al_id: "26111200000099" }, opts);
+    case "request_cancel_oco":
+      return c.request("CANCELOCOORDER", { al_id: "26111800000099" }, opts);
     case "request_place_iceberg":
       return c.request("placeicebergorder", { exch: "NSE" }, opts);
     case "request_order_book_state_changing":

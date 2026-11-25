@@ -24,6 +24,7 @@ import {
 } from "./errors.js";
 import { CALL_CONTEXT, type CallContext, type CallSpec, executeCall } from "./lib/call.js";
 import { failureMessage } from "./lib/classify.js";
+import type { WireValue } from "./lib/codec.js";
 import { toWireDecimal } from "./lib/decimal.js";
 import { makeLog } from "./lib/log.js";
 import { canonicalEndpoint } from "./lib/names.js";
@@ -72,6 +73,13 @@ import {
   type OptionGreeksOptions,
 } from "./endpoints/derived.js";
 import type { PriceInput } from "./endpoints/orders.js";
+import {
+  cancelOcoCall,
+  modifyOcoCall,
+  placeOcoCall,
+  type ModifyOcoParams,
+  type PlaceOcoParams,
+} from "./endpoints/oco.js";
 import type { BuildupReading } from "./models/generated/analytics.js";
 import type { OptionGreeks } from "./models/generated/greeks.js";
 import {
@@ -126,6 +134,7 @@ import type {
 } from "./models/index.js";
 
 export type { ModifyGttParams, PlaceGttParams } from "./endpoints/gtt.js";
+export type { ModifyOcoParams, OcoLeg, PlaceOcoParams } from "./endpoints/oco.js";
 export type { PlaceSlicedOrderParams } from "./lib/slicing.js";
 export type {
   ModifyOrderParams,
@@ -181,8 +190,18 @@ export interface RequestOptions extends CallOptions {
   expect?: "object" | "list" | undefined;
 }
 
-/** A `request()` payload value: converted to its wire text (§7.3). */
-export type RequestValue = string | number | boolean | bigint | Decimal;
+/**
+ * A `request()` payload value: converted to its wire text (§7.3), or a nested plain object or
+ * array of such values (the OCO bodies, §3.2), whose key and item order is kept.
+ */
+export type RequestValue =
+  | string
+  | number
+  | boolean
+  | bigint
+  | Decimal
+  | { readonly [key: string]: RequestValue }
+  | readonly RequestValue[];
 
 function toConfig(config: ClientConfig | ClientConfigInit | undefined): ClientConfig {
   return config instanceof ClientConfig ? config : ClientConfig.create(config ?? {});
@@ -222,10 +241,40 @@ function wireValue(key: string, value: unknown): string {
   throw badValue(key);
 }
 
+/** A `request()` value at any depth: scalars as `wireValue`, plain objects and arrays recursively. */
+const MAX_NESTING = 100;
+
+function nestedWireValue(key: string, value: unknown, depth = 0): WireValue {
+  if (depth > MAX_NESTING) {
+    throw new TypeError(`payload value for '${key}': nested too deeply (or cyclic)`);
+  }
+  // Array.from visits holes of a sparse array as undefined, which `wireValue` refuses.
+  if (Array.isArray(value))
+    return Array.from(value, (item) => nestedWireValue(key, item, depth + 1));
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    !(value instanceof Decimal) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    const out: Record<string, WireValue> = {};
+    for (const [name, item] of Object.entries(value)) {
+      Object.defineProperty(out, name, {
+        value: nestedWireValue(key, item, depth + 1),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out;
+  }
+  return wireValue(key, value);
+}
+
 function badValue(key: string): TypeError {
   return new TypeError(
     `request() payload value of '${key}' must be a string, a finite number, a boolean, a bigint ` +
-      "or a finite Decimal (not null or undefined)",
+      "a finite Decimal, or a nested object or array of those (not null or undefined)",
   );
 }
 
@@ -384,9 +433,9 @@ export class TradeSmart {
       throw new TypeError("options.expect must be 'object' or 'list'");
     }
     const info = canonicalEndpoint(endpoint);
-    const wire: [string, string][] = Object.entries(payload).map(([key, value]) => [
+    const wire: [string, WireValue][] = Object.entries(payload).map(([key, value]) => [
       key,
-      wireValue(key, value),
+      nestedWireValue(key, value),
     ]);
     if (!Object.hasOwn(payload, "uid")) wire.push(["uid", this.clientId]);
     return executeCall(this.#ctx, {
@@ -743,6 +792,40 @@ export class TradeSmart {
   async cancelGtt(alertId: string, options: CallOptions = {}): Promise<string> {
     const returned = await this.#write(() => cancelGttCall(this.clientId, alertId, options.signal));
     return this.#acknowledgedAlertId("CancelGTTOrder", alertId, returned);
+  }
+
+  // ---- OCO orders (sdk-behaviour.md §2.9): a target and a stop-loss held as one alert; order
+  // calls like the GTT writes (never retried); an unknown outcome points to `pendingGtts()`.
+
+  /**
+   * Place an OCO and return its alert id. The stop-loss is always slot `x`, the target slot `y`.
+   * A trigger already crossed may fire at once (a real order). BUY needs the stop-loss trigger
+   * above the target trigger, SELL below it. `alertValidity` `GTT` (default) keeps it until one
+   * side triggers or it is cancelled; `DAY` ends it with the trading day.
+   */
+  placeOco(params: PlaceOcoParams, options: CallOptions = {}): Promise<string> {
+    return this.#write(() => placeOcoCall(this.clientId, params, options.signal));
+  }
+
+  /**
+   * Modify a pending OCO: send every field again. `validity` and `alertValidity` have no
+   * defaults. Returns the ack's `al_id` exactly as sent (one DEBUG line when it differs).
+   */
+  async modifyOco(
+    alertId: string,
+    params: ModifyOcoParams,
+    options: CallOptions = {},
+  ): Promise<string> {
+    const returned = await this.#write(() =>
+      modifyOcoCall(this.clientId, alertId, params, options.signal),
+    );
+    return this.#acknowledgedAlertId("ModifyOCOOrder", alertId, returned);
+  }
+
+  /** Cancel a pending OCO; returns the ack's `al_id` exactly as sent. */
+  async cancelOco(alertId: string, options: CallOptions = {}): Promise<string> {
+    const returned = await this.#write(() => cancelOcoCall(this.clientId, alertId, options.signal));
+    return this.#acknowledgedAlertId("CancelOCOOrder", alertId, returned);
   }
 
   #acknowledgedAlertId(endpoint: string, sent: string, returned: string): string {

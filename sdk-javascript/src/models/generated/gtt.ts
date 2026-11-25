@@ -10,6 +10,79 @@ import {
   Validity,
 } from "./enums.js";
 
+/** One trigger value of an OCO row of `GetPendingGTTOrder` / `GetTrgOi` (an item of `oivariable`): `var_name` `x` or `y` names the leg it belongs to. Nested record: a field that fails to parse fails the parent's field (null when that field is lenient). */
+export interface OcoTrigger {
+  /** Wire key `var_name`. */
+  readonly varName: string | null;
+  /** Wire key `d`. */
+  readonly triggerValue: Decimal | null;
+  /** The wire object as received (shallow copy, redacted, frozen). */
+  readonly raw: Readonly<Record<string, unknown>>;
+  /** Wire keys this model does not name, with their values. */
+  readonly extra: Readonly<Record<string, unknown>>;
+}
+
+/** Field specification of `OcoTrigger`. */
+export const OcoTriggerSpec: ModelSpec = {
+  name: "OcoTrigger",
+  fields: [
+    { name: "varName", wire: "var_name", type: T.str },
+    { name: "triggerValue", wire: "d", type: T.Price },
+  ],
+};
+
+/** Parse one `OcoTrigger` wire record. */
+export function parseOcoTrigger(wire: unknown, ctx?: ParseContext): OcoTrigger {
+  return parseModel(OcoTriggerSpec, wire, ctx) as OcoTrigger;
+}
+
+/** One order leg of an OCO row (`place_order_params` / `place_order_params_leg2`). Its trigger value is not here: it is the `oivariable` item with the same slot (`x` for the first leg, `y` for the second), see `Gtt.oco_triggers`. Other keys of the leg (`s_prdt_ali`, `C`, `ipaddr`) are kept as extras. Nested record: a field that fails to parse fails the parent's field (null when that field is lenient). */
+export interface OcoLegRow {
+  /** Wire key `trantype`. */
+  readonly transactionType: OpenEnum<TransactionType> | null;
+  /** Wire key `prctyp`. */
+  readonly orderType: OpenEnum<OrderType> | null;
+  /** Wire key `qty`. */
+  readonly quantity: number | null;
+  /** Wire key `prc`. */
+  readonly price: Decimal | null;
+  /** Wire key `trgprc`. */
+  readonly triggerPrice: Decimal | null;
+  /** Wire key `prd`. */
+  readonly product: OpenEnum<Product> | null;
+  /** Wire key `actid`. */
+  readonly accountId: string | null;
+  /** Wire key `ordersource`. */
+  readonly ordersource: string | null;
+  /** Wire key `remarks`. */
+  readonly tag: string | null;
+  /** The wire object as received (shallow copy, redacted, frozen). */
+  readonly raw: Readonly<Record<string, unknown>>;
+  /** Wire keys this model does not name, with their values. */
+  readonly extra: Readonly<Record<string, unknown>>;
+}
+
+/** Field specification of `OcoLegRow`. */
+export const OcoLegRowSpec: ModelSpec = {
+  name: "OcoLegRow",
+  fields: [
+    { name: "transactionType", wire: "trantype", type: T.enum(TransactionType) },
+    { name: "orderType", wire: "prctyp", type: T.enum(OrderType) },
+    { name: "quantity", wire: "qty", type: T.Quantity },
+    { name: "price", wire: "prc", type: T.Price },
+    { name: "triggerPrice", wire: "trgprc", type: T.Price },
+    { name: "product", wire: "prd", type: T.enum(Product) },
+    { name: "accountId", wire: "actid", type: T.str },
+    { name: "ordersource", wire: "ordersource", type: T.str },
+    { name: "tag", wire: "remarks", type: T.str },
+  ],
+};
+
+/** Parse one `OcoLegRow` wire record. */
+export function parseOcoLegRow(wire: unknown, ctx?: ParseContext): OcoLegRow {
+  return parseModel(OcoLegRowSpec, wire, ctx) as OcoLegRow;
+}
+
 /** One pending GTT of `GetPendingGTTOrder`. Lenient record. */
 export interface Gtt {
   /** Wire key `stat`. */
@@ -54,6 +127,12 @@ export interface Gtt {
   readonly lotSize: number | null;
   /** Wire key `ordersource`. */
   readonly ordersource: string | null;
+  /** Wire key `place_order_params`. */
+  readonly ocoFirst: OcoLegRow | null;
+  /** Wire key `place_order_params_leg2`. */
+  readonly ocoSecond: OcoLegRow | null;
+  /** Wire key `oivariable`. */
+  readonly ocoTriggers: readonly OcoTrigger[] | null;
   /** The wire object as received (shallow copy, redacted, frozen). */
   readonly raw: Readonly<Record<string, unknown>>;
   /** Wire keys this model does not name, with their values. */
@@ -85,6 +164,19 @@ export const GttSpec: ModelSpec = {
     { name: "pricePrecision", wire: "pp", type: T.Quantity, lenient: true },
     { name: "lotSize", wire: "ls", type: T.Quantity, lenient: true },
     { name: "ordersource", wire: "ordersource", type: T.str, lenient: true },
+    { name: "ocoFirst", wire: "place_order_params", type: T.model(parseOcoLegRow), lenient: true },
+    {
+      name: "ocoSecond",
+      wire: "place_order_params_leg2",
+      type: T.model(parseOcoLegRow),
+      lenient: true,
+    },
+    {
+      name: "ocoTriggers",
+      wire: "oivariable",
+      type: T.list(T.model(parseOcoTrigger)),
+      lenient: true,
+    },
   ],
 };
 
@@ -137,6 +229,12 @@ export interface TriggeredGtt {
   readonly lotSize: number | null;
   /** Wire key `ordersource`. */
   readonly ordersource: string | null;
+  /** Wire key `place_order_params`. */
+  readonly ocoFirst: OcoLegRow | null;
+  /** Wire key `place_order_params_leg2`. */
+  readonly ocoSecond: OcoLegRow | null;
+  /** Wire key `oivariable`. */
+  readonly ocoTriggers: readonly OcoTrigger[] | null;
   /** Wire key `norentm`. */
   readonly norentm: Date | null;
   /** Wire key `sms_flag`. */
@@ -176,6 +274,19 @@ export const TriggeredGttSpec: ModelSpec = {
     { name: "pricePrecision", wire: "pp", type: T.Quantity, lenient: true },
     { name: "lotSize", wire: "ls", type: T.Quantity, lenient: true },
     { name: "ordersource", wire: "ordersource", type: T.str, lenient: true },
+    { name: "ocoFirst", wire: "place_order_params", type: T.model(parseOcoLegRow), lenient: true },
+    {
+      name: "ocoSecond",
+      wire: "place_order_params_leg2",
+      type: T.model(parseOcoLegRow),
+      lenient: true,
+    },
+    {
+      name: "ocoTriggers",
+      wire: "oivariable",
+      type: T.list(T.model(parseOcoTrigger)),
+      lenient: true,
+    },
     { name: "norentm", wire: "norentm", type: T.ISTDateTime, lenient: true },
     { name: "smsFlag", wire: "sms_flag", type: T.str, lenient: true },
     { name: "emailFlag", wire: "email_flag", type: T.str, lenient: true },
@@ -186,4 +297,10 @@ export const TriggeredGttSpec: ModelSpec = {
 /** Parse one `TriggeredGtt` wire record. */
 export function parseTriggeredGtt(wire: unknown, ctx?: ParseContext): TriggeredGtt {
   return parseModel(TriggeredGttSpec, wire, ctx) as TriggeredGtt;
+}
+
+/** One side of an OCO row, the result of `Gtt.stop_loss` / `Gtt.target`: the leg and its trigger value. A derived, read-only result (not a wire model). */
+export interface OcoSide {
+  readonly leg: OcoLegRow;
+  readonly triggerValue: Decimal;
 }

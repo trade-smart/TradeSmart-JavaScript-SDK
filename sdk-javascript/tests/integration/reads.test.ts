@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { Decimal } from "decimal.js";
 import { APIError, RequestValidationError, ResponseParseError } from "../../src/errors.js";
+import { isOco } from "../../src/models/index.js";
 import { scriptedClient, type Scripted } from "../helpers/scripted-client.js";
 
 const FIXTURES = path.resolve(
@@ -53,7 +54,8 @@ describe("read methods against the fixtures", () => {
 
   it("GTT reads", async () => {
     const pending = await scripted(fixture("pending_gtts_success.json")).client.pendingGtts();
-    expect(pending.length).toBe(2);
+    expect(pending.length).toBe(4);
+    expect(pending.filter(isOco).length).toBe(2);
     const trig = await scripted(fixture("triggered_gtts_success.json")).client.triggeredGtts();
     expect(trig.length).toBeGreaterThan(0);
     const kinds = await scripted(fixture("enabled_gtts_success.json")).client.gttAlertTypes();

@@ -3,7 +3,7 @@ import type { Decimal } from "../../lib/decimal.js";
 import { T, parseModel, type ModelSpec, type OpenEnum, type ParseContext } from "../base.js";
 import { Product } from "./enums.js";
 
-/** One exchange listing (`exch_tsym` element) of a holding. */
+/** One exchange listing (`exch_tsym` element) of a holding. Nested record: a field that fails to parse fails the parent's field (null when that field is lenient). */
 export interface HoldingInstrument {
   /** Wire key `exch`. */
   readonly exchange: string | null;

@@ -976,3 +976,76 @@ export function touchlineFeed(exchange: string, token: string, fields: Wire, whe
 export function depthFeed(exchange: string, token: string, fields: Wire, when: Date): Wire {
   return { t: "df", e: exchange, tk: token, ...fields, ft: epoch(when) };
 }
+
+// --- OCO -----------------------------------------------------------------------------------
+
+function ocoLegRow(leg: Wire, clientId: string, aliasProduct: boolean): Wire {
+  const row: Wire = {
+    actid: clientId,
+    trantype: leg["trantype"],
+    prctyp: leg["prctyp"],
+    qty: decimalOf(leg["qty"]).trunc().toNumber(),
+    prc: priceText(decimalOf(leg["prc"])),
+    C: "0",
+    prd: leg["prd"],
+    ordersource: "API",
+  };
+  if (text(leg["trgprc"]).trim() !== "") row["trgprc"] = priceText(decimalOf(leg["trgprc"]));
+  if (aliasProduct) row["s_prdt_ali"] = alias(String(leg["prd"]));
+  return row;
+}
+
+/**
+ * One OCO record of `GetPendingGTTOrder` (the observed shape, F35 c): leg 1's order fields copied
+ * to the top level, `d` the `x` trigger, `remarks` empty, `norentm` / `upd_tm` the placing time,
+ * legs without `tsym` / `exch` / `ret` (`trgprc` only when the leg was sent with one), `qty` a
+ * number, only leg 1 with `s_prdt_ali`, trigger values with two decimals.
+ */
+export function ocoRow(oco: Wire, clientId: string, instrument: Wire | null): Wire {
+  const shared = base(instrument);
+  const first = oco["place_order_params"] as Wire;
+  const second = oco["place_order_params_leg2"] as Wire;
+  const triggers = (oco["oivariable"] as Wire[]).map((slot) => ({
+    var_name: slot["var_name"],
+    d: priceText(decimalOf(slot["d"])),
+  }));
+  const x = triggers.find((slot) => slot.var_name === "x");
+  const placed = requestTime(oco["norentm"] as Date);
+  return {
+    stat: "Ok",
+    ai_t: oco["ai_t"],
+    al_id: oco["al_id"],
+    tsym: oco["tsym"],
+    exch: oco["exch"],
+    token: shared["token"],
+    remarks: "",
+    validity: oco["validity"],
+    pp: shared["pp"],
+    ls: shared["ls"],
+    ti: shared["ti"],
+    norentm: placed,
+    upd_tm: placed,
+    d: x?.d ?? "0.00",
+    trantype: first["trantype"],
+    prctyp: first["prctyp"],
+    qty: decimalOf(first["qty"]).trunc().toNumber(),
+    prc: priceText(decimalOf(first["prc"])),
+    prd: first["prd"],
+    ordersource: "API",
+    C: "0",
+    place_order_params: ocoLegRow(first, clientId, true),
+    place_order_params_leg2: ocoLegRow(second, clientId, false),
+    oivariable: triggers,
+  };
+}
+
+/** A cancelled OCO as `GetTrgOi` lists it: the pending row with `stat` `CANCELLED`. */
+export function cancelledOcoRow(oco: Wire, clientId: string, instrument: Wire | null): Wire {
+  return { ...ocoRow(oco, clientId, instrument), stat: "CANCELLED" };
+}
+
+/** One `GetPendingGTTOrder` record: the OCO shape for an OCO alert, the GTT shape otherwise. */
+export function pendingGttRow(alert: Wire, clientId: string, instrument: Wire | null): Wire {
+  const oco = alert["ai_t"] === "LMT_BOS_O" || alert["ai_t"] === "LMT_SOB_O";
+  return oco ? ocoRow(alert, clientId, instrument) : gttRow(alert, clientId, instrument);
+}

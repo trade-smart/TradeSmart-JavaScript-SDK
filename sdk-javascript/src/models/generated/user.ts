@@ -2,7 +2,7 @@
 import { T, parseModel, type ModelSpec, type OpenEnum, type ParseContext } from "../base.js";
 import { Product } from "./enums.js";
 
-/** One enabled product with the exchanges it is available on. */
+/** One enabled product with the exchanges it is available on. Nested record: a field that fails to parse fails the parent's field (null when that field is lenient). */
 export interface ProductInfo {
   /** Wire key `prd`. */
   readonly product: OpenEnum<Product> | null;

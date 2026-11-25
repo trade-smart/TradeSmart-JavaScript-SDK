@@ -108,7 +108,10 @@ describe("pinned skips", () => {
         source,
       );
       if (skips) {
-        expect(source, `${name} skips without skipInexpressible`).toContain("skipInexpressible(");
+        expect(
+          source.includes("skipInexpressible("),
+          `${name} skips without skipInexpressible`,
+        ).toBe(true);
         // Only the context skip that follows the pinned check; no it.skip / describe.skip / todo.
         expect(source, name).not.toMatch(/\b(it|test|describe)\.(skip|skipIf|todo|runIf)\(/);
         expect(source, name).not.toMatch(/\bx(it|test|describe)\(/);

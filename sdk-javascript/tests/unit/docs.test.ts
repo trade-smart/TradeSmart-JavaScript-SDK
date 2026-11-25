@@ -37,6 +37,7 @@ const EXAMPLE_FILES = [
   "stream-touchline.ts",
   "sliced-order.ts",
   "gtt.ts",
+  "oco-exit.ts",
   "greeks.ts",
   "analytics.ts",
   "offline-broker-test.ts",

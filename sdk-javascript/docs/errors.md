@@ -70,13 +70,13 @@ try {
 
 ## What each error carries
 
-| Error                     | Fields                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `RequestValidationError`  | `errors`: a list of `{ type, loc, msg }`; `loc` is the wire key (for example `["qty"]`), `msg` never holds the value |
-| `APIError` and subclasses | `endpoint`, `httpStatus` (`null` for the SDK's own checks), `emsg`, `requestTime`, `raw`                             |
-| `RateLimitError`          | the `APIError` fields and `retryAfter` (seconds, or `null`)                                                          |
-| `OrderStatusUnknownError` | `endpoint`, `httpStatus`, `body` (redacted, at most 2,000 characters), `slicedResult`                                |
-| `ResponseParseError`      | `endpoint`, `httpStatus`, `body`, `model`, `fields` (wire keys, never values), `protectedKey`                        |
+| Error                     | Fields                                                                                                                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RequestValidationError`  | `errors`: a list of `{ type, loc, msg }`; `loc` is the wire key (`["qty"]`); a nested path (OCO) keeps array positions as numbers (`["oivariable", 0, "d"]`, `["place_order_params", "prc"]`; the index is a number, so `loc` is `readonly (string | number)[]`); `msg` never holds the value |
+| `APIError` and subclasses | `endpoint`, `httpStatus` (`null` for the SDK's own checks), `emsg`, `requestTime`, `raw`                                                                                                                                                           |
+| `RateLimitError`          | the `APIError` fields and `retryAfter` (seconds, or `null`)                                                                                                                                                                                        |
+| `OrderStatusUnknownError` | `endpoint`, `httpStatus`, `body` (redacted, at most 2,000 characters), `slicedResult`                                                                                                                                                              |
+| `ResponseParseError`      | `endpoint`, `httpStatus`, `body`, `model`, `fields` (wire keys, never values), `protectedKey`                                                                                                                                                      |
 
 Errors on the REST path chain no `cause`: a cause could hold raw values or request headers.
 
@@ -115,7 +115,7 @@ containing `NaN` or `Infinity`, which JSON does not allow), a success that lacks
 `stat` word, and **a non-certificate TLS error after the connection opened**. An abort after the
 request was handed over is not an SDK error: the call rejects with the signal's own reason, logs
 `unknown` with a WARNING and never resends; handle it like `OrderStatusUnknownError` (check
-`orders()`, a GTT: `pendingGtts()`, before sending anything again). A certificate failure, a refused connection, a connect timeout or no free
+`orders()`, a GTT or OCO: `pendingGtts()`, before sending anything again). A certificate failure, a refused connection, a connect timeout or no free
 connection provably sent nothing and reject with `NetworkError` or `RequestTimeoutError` instead.
 For a **read**, a body with `NaN` or `Infinity` is a `ResponseParseError`.
 
@@ -127,7 +127,8 @@ The SDK never retries a write, whatever the failure. See
 The low-level `request()` converts payload values to wire text. A `null` or `undefined` value, or a
 non-finite number (`NaN`, `Infinity`), throws a `TypeError` before anything is sent. A string is sent
 as is, a boolean as `Yes` or `No`, a finite number or `Decimal` as plain decimal text, a `bigint` as
-its digits.
+its digits; a plain object or array of such values is sent nested (as the OCO bodies need), keys and
+items in order.
 
 ## Troubleshooting
 
@@ -144,15 +145,16 @@ its digits.
 
 ### Orders
 
-| Symptom                                                        | Cause and fix                                                                                                                                                                            |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RequestValidationError`                                       | The order broke a rule; nothing was sent. `error.errors` lists the wire keys. See [validation](orders.md#validation-before-sending)                                                      |
-| `TypeError` about an unknown option                            | A property name the SDK does not know (a typo). Nothing was sent                                                                                                                         |
-| `OrderRejectedError`                                           | TradeSmart or the exchange refused the request; read `error.emsg` (insufficient funds, price outside the band, market closed, MARKET not allowed for API orders). Retrying will not help |
-| `OrderStatusUnknownError`                                      | The request may or may not have reached the exchange. **Do not resend.** Find the order by its tag in `orders()`                                                                         |
-| `RateLimitError` with `httpStatus` `null`                      | The SDK's own limiter: an order would have waited more than 1 s, or `rateLimitMode` is `"raise"`. Nothing was sent; wait `retryAfter` seconds                                            |
-| The order is `REJECTED` although `placeOrder()` returned an id | `placeOrder()` only confirms that TradeSmart accepted the request; the exchange or risk checks can still reject it. Read `rejectReason`                                                  |
-| A symbol such as `M&M-EQ`                                      | Pass it unescaped; the SDK encodes `&`, `+` and `%`                                                                                                                                      |
+| Symptom                                                                                   | Cause and fix                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RequestValidationError`                                                                  | The order broke a rule; nothing was sent. `error.errors` lists the wire keys. See [validation](orders.md#validation-before-sending)                                                                                                             |
+| `TypeError` about an unknown option                                                       | A property name the SDK does not know (a typo). Nothing was sent                                                                                                                                                                                |
+| `OrderRejectedError`                                                                      | TradeSmart or the exchange refused the request; read `error.emsg` (insufficient funds, price outside the band, market closed, MARKET not allowed for API orders). Retrying will not help                                                        |
+| `OrderStatusUnknownError`                                                                 | The request may or may not have reached the exchange. **Do not resend.** Find the order by its tag in `orders()` (a GTT or OCO write: in `pendingGtts()`)                                                                                       |
+| `OrderRejectedError` `Invalid Oi` on `modifyGtt`, `cancelGtt`, `modifyOco` or `cancelOco` | Seen on TradeSmart's test environment when the alert was already cancelled (or no longer exists). The SDK treats it as a refusal (`OrderRejectedError`) on a modify or cancel. Read `pendingGtts()` and `triggeredGtts()` for its current state |
+| `RateLimitError` with `httpStatus` `null`                                                 | The SDK's own limiter: an order would have waited more than 1 s, or `rateLimitMode` is `"raise"`. Nothing was sent; wait `retryAfter` seconds                                                                                                   |
+| The order is `REJECTED` although `placeOrder()` returned an id                            | `placeOrder()` only confirms that TradeSmart accepted the request; the exchange or risk checks can still reject it. Read `rejectReason`                                                                                                         |
+| A symbol such as `M&M-EQ`                                                                 | Pass it unescaped; the SDK encodes `&`, `+` and `%`                                                                                                                                                                                             |
 
 ### Market data
 

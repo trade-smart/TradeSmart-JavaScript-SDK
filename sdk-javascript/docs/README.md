@@ -25,28 +25,28 @@ Step by step, with copy-paste code: **[Your first order in 10 minutes](getting-s
 
 ## Pages
 
-| Page                                          | What is in it                                                                                                                                     |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Getting started](getting-started.md)         | API access, install, login, first call, first order (place, status, modify, cancel), live updates, common errors                                  |
-| [Orders](orders.md)                           | Every order call and parameter, prices, validation, the status lifecycle, recovery by tag, rate limits, sliced orders, GTT, logging, cancellation |
-| [Streaming](stream.md)                        | `TradeSmartStream`: callbacks and `for await`, reconnects, catching up, message types, snapshots                                                  |
-| [Instruments and market data](instruments.md) | Search, the script master and when it is refreshed, quotes, candles, option chains                                                                |
-| [Option Greeks](greeks.md)                    | `optionGreeks()`, the pure functions of `tradesmart/greeks`, models, status, units                                                                |
-| [Option analytics](analytics.md)              | Chain snapshot, put-call ratio, max pain, buildup                                                                                                 |
-| [The login command](login.md)                 | `npx tradesmart login`, saved keys, logout, Docker                                                                                                |
-| [Errors](errors.md)                           | The error tree, what each error carries, what "unknown" means, troubleshooting                                                                    |
-| [Configuration](configuration.md)             | Every `ClientConfig` setting, environment variables, the saved login, rate limits and retries, low latency                                        |
-| [Logging](logging.md)                         | Plugging in a logger, what is logged, how secrets are masked                                                                                      |
-| [Testing your code](testing.md)               | The offline broker and its failure drills, mocking the REST calls, testing a stream, the SDK's own tests                                          |
-| [Reference](reference.md)                     | Every method, helper, enum, model and error in one page; known limitations                                                                        |
-| [Architecture](architecture.md)               | How the SDK is built                                                                                                                              |
+| Page                                          | What is in it                                                                                                                                          |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [Getting started](getting-started.md)         | API access, install, login, first call, first order (place, status, modify, cancel), live updates, common errors                                       |
+| [Orders](orders.md)                           | Every order call and parameter, prices, validation, the status lifecycle, recovery by tag, rate limits, sliced orders, GTT, OCO, logging, cancellation |
+| [Streaming](stream.md)                        | `TradeSmartStream`: callbacks and `for await`, reconnects, catching up, message types, snapshots                                                       |
+| [Instruments and market data](instruments.md) | Search, the script master and when it is refreshed, quotes, candles, option chains                                                                     |
+| [Option Greeks](greeks.md)                    | `optionGreeks()`, the pure functions of `tradesmart/greeks`, models, status, units                                                                     |
+| [Option analytics](analytics.md)              | Chain snapshot, put-call ratio, max pain, buildup                                                                                                      |
+| [The login command](login.md)                 | `npx tradesmart login`, saved keys, logout, Docker                                                                                                     |
+| [Errors](errors.md)                           | The error tree, what each error carries, what "unknown" means, troubleshooting                                                                         |
+| [Configuration](configuration.md)             | Every `ClientConfig` setting, environment variables, the saved login, rate limits and retries, low latency                                             |
+| [Logging](logging.md)                         | Plugging in a logger, what is logged, how secrets are masked                                                                                           |
+| [Testing your code](testing.md)               | The offline broker and its failure drills, mocking the REST calls, testing a stream, the SDK's own tests                                               |
+| [Reference](reference.md)                     | Every method, helper, enum, model and error in one page; known limitations                                                                             |
+| [Architecture](architecture.md)               | How the SDK is built                                                                                                                                   |
 
 ## More
 
 - [Examples](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/tree/main/sdk-javascript/examples):
   runnable scripts (first call, read your account, quotes and candles, Greeks, analytics, a test with the
   offline broker, place and cancel on a test
-  account, a stream, sliced orders, GTT, CommonJS).
+  account, a stream, sliced orders, GTT, OCO, CommonJS).
 - [Changelog](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/blob/main/sdk-javascript/CHANGELOG.md).
 
 > Trading involves real money. The SDK never retries an order and tells you when an order's outcome is

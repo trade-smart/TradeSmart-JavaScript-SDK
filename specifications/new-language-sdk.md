@@ -12,6 +12,9 @@ The Python SDK (`sdk-python/`) is the reference implementation. For a new langua
 - Keep the same public method names (`place_order`, `orders`, `quote`, `option_greeks`, ...) in the
   language's case style; flat client methods, no namespaces; sync and async variants where the
   language has both.
+- Implement the OCO feature too (`specifications/sdk-behaviour.md` 2.9): `place_oco`, `modify_oco`, `cancel_oco`, the
+  OCO leg, trigger and side models, the `is_oco` / `stop_loss` / `target` readers on the GTT row, and the
+  `oco_requests.json` and `oco_rows.json` vectors (and the OCO fixtures in `test-fixtures/`). The three OCO writes are never retried (success words and `Invalid Oi`: 4.2.1).
 - Pass every conformance vector and every fixture in `specifications/`; add a test per file that
   loads it. Some vectors drive the real client through an in-memory HTTP transport
   (`read_payloads`, `outcome_words`, `transport_failures`, `script_master_freshness`); their README
@@ -38,7 +41,7 @@ The Python SDK (`sdk-python/`) is the reference implementation. For a new langua
 - Keep a public `sdk-<lang>/.gitignore` of its own (paths anchored to that folder), so package
   builds never pick up the monorepo root's ignore file.
 - Follow the same safety rules: no retries on order calls (`PlaceOrder`, `PlaceMultiOrder`,
-  `ModifyOrder`, `CancelOrder`, `ExitSNOOrder`, `GenAcsTok`, the GTT and iceberg writes), an
+  `ModifyOrder`, `CancelOrder`, `ExitSNOOrder`, `GenAcsTok`, the GTT, OCO and iceberg writes), an
   ambiguous outcome is `OrderStatusUnknown` (exact success words per endpoint, spec 4.2.1), no
   tokens, secret keys, checksums or codes in logs, parse the body whatever the HTTP status, never
   follow HTTP redirects (most HTTP libraries follow them by default and may re-send an order body).
@@ -152,7 +155,7 @@ other gate. Do not port the order suites to the new language. Until the driver e
 SDK has the read-only live suite only, with the same gates as above.
 
 The driver covers the **state-changing calls only** (place, sliced place, modify, cancel, exit, and the
-GTT calls). The harness's own reads (book lookups, account match, limits preflight, quotes, instruments,
+GTT and OCO calls; driver protocol 2). The harness's own reads (book lookups, account match, limits preflight, quotes, instruments,
 teardown checks) stay on the Python client as an independent referee, even though the protocol carries
 the read methods so a driver can be tested in full. The async-client and stream family of the matrix runs
 for Python only and is skipped, with a reason, for other SDKs. A driver never runs in funded mode or in

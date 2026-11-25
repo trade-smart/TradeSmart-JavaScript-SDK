@@ -99,6 +99,9 @@ const NO_MODEL = new Set([
   "place_gtt_success.json",
   "modify_gtt_success.json",
   "cancel_gtt_success.json",
+  "place_oco_success.json",
+  "modify_oco_success.json",
+  "cancel_oco_success.json",
   "enabled_gtts_success.json",
 ]);
 

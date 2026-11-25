@@ -20,7 +20,7 @@ import { Decimal } from "decimal.js";
 import type { Dispatcher } from "undici";
 import type { ClientConfigInit, SlicedOrderResult, TradeSmart } from "../../src/index.js";
 
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 export const NONCE_ENV = "TRADESMART_LIVE_DRIVER_RUN";
 export const SDK_NAME = "javascript";
 
@@ -97,6 +97,9 @@ const WRITE_ENDPOINTS = new Set([
   "PlaceGTTOrder",
   "ModifyGTTOrder",
   "CancelGTTOrder",
+  "PlaceOCOOrder",
+  "ModifyOCOOrder",
+  "CancelOCOOrder",
   "GenAcsTok",
 ]);
 
@@ -225,6 +228,22 @@ function params(args: Json, drop: readonly string[] = []): Json {
     out[camel(key)] =
       DECIMAL_ARGS.has(key) && typeof value === "string" ? toDecimal(key, value) : value;
   }
+  return out;
+}
+
+/** An OCO leg (`{trigger_value, price, order_type, trigger_price}`) as the SDK's `OcoLeg`. */
+function ocoLeg(name: string, value: unknown): Json {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ArgumentError(`${name} must be an object`);
+  }
+  return params(value as Json);
+}
+
+/** The SDK's OCO parameter object: both legs converted, the rest as for any call. */
+function ocoParams(args: Json, drop: readonly string[] = []): Json {
+  const out = params(args, [...drop, "stop_loss", "target"]);
+  out["stopLoss"] = ocoLeg("stop_loss", args["stop_loss"]);
+  out["target"] = ocoLeg("target", args["target"]);
   return out;
 }
 
@@ -510,6 +529,11 @@ const TABLE: Record<string, Call> = {
     c.modifyGtt(text(a, "alert_id"), rest(a, "alert_id") as never),
   ),
   cancel_gtt: write("CancelGTTOrder", (c, a) => c.cancelGtt(text(a, "alert_id"))),
+  place_oco: write("PlaceOCOOrder", (c, a) => c.placeOco(ocoParams(a) as never)),
+  modify_oco: write("ModifyOCOOrder", (c, a) =>
+    c.modifyOco(text(a, "alert_id"), ocoParams(a, ["alert_id"]) as never),
+  ),
+  cancel_oco: write("CancelOCOOrder", (c, a) => c.cancelOco(text(a, "alert_id"))),
   profile: read((c) => c.profile()),
   margins: read((c) => c.margins()),
   positions: read((c) => c.positions()),

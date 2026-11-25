@@ -15,6 +15,7 @@ import type {
   Validity,
 } from "../enums.js";
 import type { CallSpec } from "../lib/call.js";
+import type { WirePayload } from "../lib/codec.js";
 import type { ClassifyResult } from "../lib/classify.js";
 import { redactedBody } from "../lib/redact.js";
 import { checkParams, checkPriceRules, orderPrice, Validator } from "../lib/validate.js";
@@ -84,6 +85,9 @@ const PLACE_KEYS: readonly string[] = [
 const GTT_EXCHANGES: ReadonlySet<string> = new Set(["NSE", "NFO", "BSE", "BFO", "MCX"]);
 const GTT_PRODUCTS: ReadonlySet<string> = new Set(["C", "M", "H"]);
 
+/** The two OCO alert codes: known to `GttAlertType`, refused by the GTT writes. */
+const OCO_ALERT_TYPES: ReadonlySet<string> = new Set(["LMT_BOS_O", "LMT_SOB_O"]);
+
 type Pairs = [string, string][];
 
 /**
@@ -101,7 +105,14 @@ function gttFields(
     exch = v.fail("exch", "value_error", "a GTT is offered on NSE, NFO, BSE, BFO and MCX only");
   }
   const tsym = v.text(p["tradingsymbol"], "tsym");
-  const aiT = v.enumCode("GttAlertType", p["alertType"], "ai_t");
+  let aiT = v.enumCode("GttAlertType", p["alertType"], "ai_t");
+  if (aiT !== null && OCO_ALERT_TYPES.has(aiT)) {
+    aiT = v.fail(
+      "ai_t",
+      "value_error",
+      "an OCO alert type is placed and changed with placeOco / modifyOco, not placeGtt / modifyGtt",
+    );
+  }
   const d = v.price(p["triggerValue"], "d", { required: true, signed: true });
   const validity = v.enumCode(
     "GttValidity",
@@ -169,9 +180,10 @@ function alertIdDecoder(endpoint: string): (result: ClassifyResult) => string {
   };
 }
 
-function gttWriteSpec(
+/** The spec of a GTT or OCO write (an order call: never retried, success on the documented word). */
+export function gttWriteSpec(
   endpoint: string,
-  payload: Pairs,
+  payload: WirePayload,
   signal: AbortSignal | undefined,
 ): CallSpec<string> {
   return {

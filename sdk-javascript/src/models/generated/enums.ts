@@ -66,6 +66,8 @@ export const GttAlertType = Object.freeze({
   HIGH_52W_ABOVE: "LTP_A_52HIGH_O",
   HIGH_52W_BELOW: "LTP_B_52HIGH_O",
   VOLUME_ABOVE: "VOLUME_A_O",
+  OCO_BUY: "LMT_BOS_O",
+  OCO_SELL: "LMT_SOB_O",
 } as const);
 export type GttAlertType = (typeof GttAlertType)[keyof typeof GttAlertType];
 
@@ -165,6 +167,8 @@ export const ENUM_LOOKUP = {
     LTP_A_52HIGH_O: "LTP_A_52HIGH_O",
     LTP_B_52HIGH_O: "LTP_B_52HIGH_O",
     VOLUME_A_O: "VOLUME_A_O",
+    LMT_BOS_O: "LMT_BOS_O",
+    LMT_SOB_O: "LMT_SOB_O",
     LTP_ABOVE: "LTP_A_O",
     LTP_BELOW: "LTP_B_O",
     CHANGE_PERCENT_ABOVE: "CH_PER_A_O",
@@ -178,6 +182,8 @@ export const ENUM_LOOKUP = {
     HIGH_52W_ABOVE: "LTP_A_52HIGH_O",
     HIGH_52W_BELOW: "LTP_B_52HIGH_O",
     VOLUME_ABOVE: "VOLUME_A_O",
+    OCO_BUY: "LMT_BOS_O",
+    OCO_SELL: "LMT_SOB_O",
   },
   GttValidity: {
     DAY: "DAY",

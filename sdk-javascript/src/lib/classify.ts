@@ -15,7 +15,7 @@ import {
   type APIErrorOptions,
 } from "../errors.js";
 import { parseJsonLossless } from "./json.js";
-import { canonicalEndpoint, isSuccessWord, type EndpointInfo } from "./names.js";
+import { canonicalEndpoint, isFailureWord, isSuccessWord, type EndpointInfo } from "./names.js";
 import { redactText, redactedBody } from "./redact.js";
 
 /** One response to classify. */
@@ -52,6 +52,9 @@ const GTT_WRITES: ReadonlySet<string> = new Set([
   "PlaceGTTOrder",
   "ModifyGTTOrder",
   "CancelGTTOrder",
+  "PlaceOCOOrder",
+  "ModifyOCOOrder",
+  "CancelOCOOrder",
 ]);
 const ICEBERG_FAILURE_STAT = "false";
 
@@ -231,6 +234,17 @@ export function classifyResponse(r: ClassifyInput): ClassifyResult {
   if (typeof data === "object" && data !== null) {
     const object = data as Record<string, unknown>;
     const stat = field(object, "stat");
+    // `Invalid Oi` is a definite failure, checked before the success check (§4.2.1).
+    if (info !== null && isFailureWord(canonical, stat)) {
+      const requestTime = field(object, "request_time");
+      throw new OrderRejectedError("Invalid Oi", {
+        endpoint,
+        httpStatus: status,
+        emsg: redactText(stat as string),
+        requestTime: typeof requestTime === "string" ? requestTime : null,
+        raw: object,
+      });
+    }
     let success =
       typeof stat === "string" && (info === null ? stat === "Ok" : isSuccessWord(canonical, stat));
     if (success && ackField !== null) {
