@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.0.0/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
-    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.0.0/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
+    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
   </picture>
 </p>
 
