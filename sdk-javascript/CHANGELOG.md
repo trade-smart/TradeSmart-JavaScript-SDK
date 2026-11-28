@@ -4,6 +4,13 @@ All notable changes to the `tradesmart` JavaScript and TypeScript SDK are docume
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.1] — 2026-11-28
+
+### Fixed
+
+- The Node.js floor is now 22.19 (undici 8 requires it); 2.1.0 declared 22.12 and could fail to import on
+  Node 22.12-22.18.
+
 ## [2.1.0] — 2026-11-26
 
 ### Added

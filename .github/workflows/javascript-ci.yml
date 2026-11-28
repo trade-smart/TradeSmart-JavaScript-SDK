@@ -1,7 +1,7 @@
 name: JavaScript CI
 
-# The JavaScript SDK's checks. Linux (Node 22, 24 and 26), Windows and macOS run on every push and
-# pull request (the repository is public: macOS minutes are free). Nothing here sets a live-test
+# The JavaScript SDK's checks. Linux (Node 22.19.0, 22, 24 and 26), Windows and macOS run on every
+# push and pull request (the repository is public: macOS minutes are free). Nothing here sets a live-test
 # variable or a credential: CI runs the offline suite only.
 on:
   pull_request:
@@ -54,7 +54,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest]
-        node-version: ["22", "24", "26"]
+        node-version: ["22.19.0", "22", "24", "26"]
         include:
           - os: windows-latest
             node-version: "24"

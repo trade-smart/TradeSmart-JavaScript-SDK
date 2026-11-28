@@ -1,6 +1,6 @@
 {
   "name": "tradesmart",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Official TradeSmart API V2 SDK for JavaScript and TypeScript (Node.js)",
   "homepage": "https://signup.tradesmartonline.in/?utm_source=TypeScriptSDK&utm_medium=Organic&utm_campaign=SDK_Open_Demat&utm_content=registry_sidebar&channel=Organic&platform=web",
   "repository": {
@@ -64,7 +64,7 @@
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.19"
   },
   "sideEffects": false,
   "scripts": {

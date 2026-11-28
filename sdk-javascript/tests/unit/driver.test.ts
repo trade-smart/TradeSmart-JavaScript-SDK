@@ -129,7 +129,7 @@ async function converse(
     client,
     {
       nonce: extra.nonce ?? NONCE,
-      version: "2.1.0",
+      version: "2.1.1",
       environment: "uat",
       capture,
       secrets: extra.secrets ?? [],
@@ -194,7 +194,7 @@ describe("the handshake", () => {
     const run = await converse(w.client, w.capture, []);
     expect(run.hello).toEqual({
       sdk: "javascript",
-      version: "2.1.0",
+      version: "2.1.1",
       environment: "uat",
       client_id: "OFFLINE01",
       run: NONCE,
@@ -210,7 +210,7 @@ describe("the handshake", () => {
     const out: string[] = [];
     const code = await serve(Readable.from([]), { write: (t: string) => out.push(t) }, w.client, {
       nonce: "  ",
-      version: "2.1.0",
+      version: "2.1.1",
       environment: "uat",
       capture: w.capture,
     });
@@ -883,7 +883,7 @@ describe("the protocol loop", () => {
       Readable.from([text.slice(0, 10), text.slice(10, 50), text.slice(50)]),
       { write: (t: string) => out.push(t) },
       client,
-      { nonce: NONCE, version: "2.1.0", environment: "uat", capture: new WireCapture() },
+      { nonce: NONCE, version: "2.1.1", environment: "uat", capture: new WireCapture() },
     );
     expect(code).toBe(0);
     expect(calls).toEqual(["profile", "profile"]);
@@ -941,7 +941,7 @@ describe("the protocol loop", () => {
       Readable.from([request(1, "profile")]),
       { write: (t: string) => out.push(t) },
       client,
-      { nonce: NONCE, version: "2.1.0", environment: "uat", capture: new WireCapture() },
+      { nonce: NONCE, version: "2.1.1", environment: "uat", capture: new WireCapture() },
     );
     expect(code).toBe(1);
     expect(calls).toEqual([]);
@@ -1084,7 +1084,7 @@ describe("the start-up refusal", () => {
       Promise.resolve({
         client: w.client,
         capture: w.capture,
-        version: "2.1.0",
+        version: "2.1.1",
         environment: "uat",
         secrets: [],
         close,
@@ -1316,7 +1316,7 @@ describe("buildFromEnvironment (the program's build path, offline)", () => {
         });
         expect(built.client.clientId).toBe("UAT123");
         expect(built.environment).toBe("uat");
-        expect(built.version).toBe("2.1.0");
+        expect(built.version).toBe("2.1.1");
         expect(built.client.config.baseUrl).toBe(URLS.TRADESMART_ENV_BASE_URL);
         expect(built.secrets).toContain(token);
         expect(built.capture.dispatched).toBe(0); // building sends nothing

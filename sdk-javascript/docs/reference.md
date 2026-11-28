@@ -1,6 +1,6 @@
 # Reference
 
-Every public name of the `tradesmart` package. Version 2.1.0. The package is ESM-only (Node 22.12 or
+Every public name of the `tradesmart` package. Version 2.1.1. The package is ESM-only (Node 22.19 or
 newer, `"type": "module"`); there is one entry point, `tradesmart`.
 
 ## Conventions
@@ -166,7 +166,7 @@ the default logger; the `Logger` and `LogContext` types describe a custom one
 | `AccessToken`                              | The login result: `accessToken` (a masked `Secret`; `.reveal()` gives the text), `userId`, `issuedAt`, `expiresAt`, `isExpired()`        |
 | `Decimal`                                  | decimal.js, re-exported                                                                                                                  |
 | `isOco(gtt)`, `ocoSides(gtt)`              | OCO row helpers: is it an OCO; `{ stopLoss, target }` as `{ leg, triggerValue }`, or `null` when ambiguous (a repeated or equal trigger) |
-| `VERSION`                                  | `"2.1.0"`                                                                                                                                |
+| `VERSION`                                  | `"2.1.1"`                                                                                                                                |
 
 ## Enums
 
@@ -212,4 +212,4 @@ The tree and the fields are in [Errors](errors.md).
 - Parsing a script master runs on the main thread.
 - `maxKeepaliveConnections` does not change how many idle connections undici keeps.
 - One stream class: one iterator at a time ([Streaming](stream.md#limits-of-the-single-class)).
-- Node 22.12 or newer; ESM-only (load from CommonJS with `require("tradesmart")`).
+- Node 22.19 or newer; ESM-only (load from CommonJS with `require("tradesmart")`).

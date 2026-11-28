@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
-    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.1/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
+    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.1/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
   </picture>
 </p>
 
@@ -11,11 +11,11 @@ The official JavaScript and TypeScript SDK for the
 [TradeSmart API V2](https://apidocs.tradesmartonline.in/v2/), from TradeSmart Fintech Securities
 Limited. Log in, read your account, find instruments, place and manage orders, and stream live prices
 and order updates from Node.js; option Greeks and analytics; an offline broker for tests. Version
-**2.1.0**. **TradeSmart SDK behaviour 2.0 — full.**
+**2.1.1**. **TradeSmart SDK behaviour 2.0 — full.**
 
 ## Install
 
-Node.js 22.12 or newer:
+Node.js 22.19 or newer:
 
 ```bash
 npm install tradesmart

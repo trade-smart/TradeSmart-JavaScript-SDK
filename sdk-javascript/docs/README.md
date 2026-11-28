@@ -15,7 +15,7 @@ implemented (Greeks, analytics, the login command and the offline broker include
 1. **Get API access** on the TradeSmart web platform (<https://web.tradesmartonline.in/api>): generate
    an API key with your static IP and the Redirect URL `http://127.0.0.1:8080/callback`. The dashboard
    shows an **App ID**; that is the **App Key** of this SDK.
-2. **Install:** `npm install tradesmart` (Node.js 22.12 or newer).
+2. **Install:** `npm install tradesmart` (Node.js 22.19 or newer).
 3. **Log in** once a day (the token is valid until 06:00 IST) with `npx tradesmart login`; the
    Python SDK shares the saved login.
 4. **Call the API** with `TradeSmart.fromEnv()`: no keys in your code.

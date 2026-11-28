@@ -10,14 +10,14 @@ body:
     id: version
     attributes:
       label: SDK version (npm package tradesmart)
-      placeholder: "2.1.0"
+      placeholder: "2.1.1"
     validations:
       required: true
   - type: input
     id: node
     attributes:
       label: Node.js version and operating system
-      description: The SDK supports Node.js 22.12 and later.
+      description: The SDK supports Node.js 22.19 and later.
       placeholder: "Node.js 24.11 on Ubuntu 24.04"
     validations:
       required: true

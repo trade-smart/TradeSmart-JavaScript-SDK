@@ -37,8 +37,8 @@ If a key leaks, remove the app on the API Dashboard and create a new one.
 
 ## 2. Install the SDK
 
-You need **Node.js 22.12 or newer** (22, 24 and 26 are tested). The package is ESM-only; it can
-also be loaded from CommonJS with `require("tradesmart")` (Node 22.12 and later), see
+You need **Node.js 22.19 or newer** (22, 24 and 26 are tested). The package is ESM-only; it can
+also be loaded from CommonJS with `require("tradesmart")` (Node 22.19 and later), see
 [`examples/commonjs-require.cjs`](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/blob/main/sdk-javascript/examples/commonjs-require.cjs).
 
 ```bash
@@ -50,7 +50,7 @@ The SDK has four runtime dependencies (`decimal.js`, `undici`, `ws`, `fflate`). 
 ```ts
 import { VERSION } from "tradesmart";
 
-console.log(VERSION); // 2.1.0
+console.log(VERSION); // 2.1.1
 ```
 
 ## 3. Log in once a day

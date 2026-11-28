@@ -5,7 +5,7 @@
 #   docker compose run --rm dev npm run lint      # eslint + prettier check
 #   docker compose run --rm dev npm run typecheck # tsc --noEmit
 #   docker compose run --rm dev npm run build     # emits dist/
-#   docker compose run --rm node22 npm test       # Node 22 floor (also node24)
+#   docker compose run --rm node22 npm test       # Node 22.19 floor (also node24)
 # See CONTRIBUTING.md for the full list of quality gates.
 
 x-sdk: &sdk
@@ -59,7 +59,7 @@ services:
     build:
       context: .
       args:
-        NODE_VERSION: "22"
+        NODE_VERSION: "22.19"
     image: tradesmart-js-dev:node22
     volumes:
       - ..:/repo

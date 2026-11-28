@@ -296,7 +296,7 @@ describe("commonjs-require.cjs", () => {
   it("loads TradeSmart with require('tradesmart') from the built package", () => {
     const version = (JSON.parse(read("package.json")) as { version: string }).version;
     // Node resolves the package's own name through its `exports` (self-reference), and
-    // `require()` loads the ES module build (Node 22.12 and later).
+    // `require()` loads the ES module build (Node 22.19 and later).
     const out = execFileSync(process.execPath, ["examples/commonjs-require.cjs"], {
       cwd: ROOT,
       encoding: "utf8",
@@ -376,5 +376,27 @@ describe("phase-2 pages", () => {
   it("testing.md and the changelog state the ESM-only, one-port facts", () => {
     expect(read("docs/testing.md")).toMatch(/ESM-only/);
     expect(read("CHANGELOG.md")).toMatch(/ESM-only/);
+  });
+});
+
+describe("package metadata and the Node floor", () => {
+  const pkg = JSON.parse(read("package.json")) as { engines: { node: string } };
+
+  it("declares the Node floor undici 8 needs (22.19), not the older 22.12", () => {
+    expect(pkg.engines.node).toBe(">=22.19");
+  });
+
+  it("no current document or example states the 22.12 floor", () => {
+    // CHANGELOG.md is excluded: its dated entries record what each release declared.
+    const files = [
+      "README.md",
+      "repo-root/README.md",
+      "repo-root/.github/ISSUE_TEMPLATE/bug_report.yml",
+      "examples/commonjs-require.cjs",
+      ...DOC_FILES,
+    ];
+    for (const file of files) {
+      expect(read(file), file).not.toContain("22.12");
+    }
   });
 });

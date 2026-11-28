@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
-    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.0/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
+    <source media="(prefers-color-scheme: dark)" srcset="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.1/sdk-javascript/docs/assets/tradesmart-logo-dark.svg">
+    <img src="https://cdn.jsdelivr.net/gh/trade-smart/TradeSmart-JavaScript-SDK@v2.1.1/sdk-javascript/docs/assets/tradesmart-logo.svg" alt="TradeSmart" width="240">
   </picture>
 </p>
 
@@ -11,7 +11,7 @@ TradeSmart's official SDK for the [TradeSmart API V2](https://apidocs.tradesmart
 Node.js. Log in once a day, read your account, find instruments, place and manage orders, and stream
 live prices and order updates, from TypeScript or plain JavaScript.
 
-> **Version 2.1.0. TradeSmart SDK behaviour 2.0 — full.** Everything the behaviour
+> **Version 2.1.1. TradeSmart SDK behaviour 2.0 — full.** Everything the behaviour
 > contract requires and recommends is implemented: option Greeks and analytics, the login command
 > and an offline broker for tests. Trading involves real money: read the
 > [Orders guide](https://github.com/trade-smart/TradeSmart-JavaScript-SDK/blob/main/sdk-javascript/docs/orders.md)
@@ -40,7 +40,7 @@ live prices and order updates, from TypeScript or plain JavaScript.
 
 ## Install
 
-Node.js 22.12 or newer:
+Node.js 22.19 or newer:
 
 ```bash
 npm install tradesmart

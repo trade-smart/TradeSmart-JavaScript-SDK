@@ -162,7 +162,7 @@ describe("authentication before every call (§6.3)", () => {
     const s = scripted([{ body: '{"stat":"Ok"}' }]);
     await s.client.request("Limits", {}, { stateChanging: false });
     expect(s.headers[0]?.["authorization"]).toBe(`Bearer ${TOKEN}`);
-    expect(s.headers[0]?.["user-agent"]).toBe("tradesmart-javascript/2.1.0");
+    expect(s.headers[0]?.["user-agent"]).toBe("tradesmart-javascript/2.1.1");
   });
 });
 
